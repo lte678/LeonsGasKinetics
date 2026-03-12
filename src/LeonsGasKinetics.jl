@@ -4,6 +4,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+module LeonsGasKinetics
+
 using Printf
 using TOML
 using HDF5
@@ -16,6 +18,7 @@ using JET
 include("constants.jl")
 include("sampling/maxwellian.jl")
 include("particle_data.jl")
+include("performance_counters.jl")
 include("simulation_state.jl")
 include("mesh.jl")
 include("boundary.jl")
@@ -38,7 +41,8 @@ function precompile(mesh, sim_config)
     sim = SimulationState(
         ParticleData([mesh.cells[1].barycenter], [[1000.0, 1000.0, 1000.0]], [1]),
         part_counts,
-        0.0
+        0.0,
+        PerformanceCounters()
     )
     sim_config = @set sim_config.t_end = sim_config.dt*100
     sim_config = @set sim_config.silent = true
@@ -46,11 +50,14 @@ function precompile(mesh, sim_config)
 end
 
 
-function (@main)(args)
+function run(args)
     arg_set = ArgParseSettings(description="Leon's Gas Kinetics  Copyright (C) 2025 Leon Teichroeb. This program comes with ABSOLUTELY NO WARRANTY; for details see LICENSE.")
     @add_arg_table! arg_set begin
         "--asserts"
             help = "Enables extra assertions (slow!)"
+            action = :store_true
+        "--profile"
+            help = "Print how compute time was spent in the simulation"
             action = :store_true
         "config_file"
             help = "Path to simulation configuration file"
@@ -87,7 +94,8 @@ function (@main)(args)
     sim = SimulationState(
         ParticleData(),
         [],
-        0.0  # Start time
+        0.0,  # Start time
+        PerformanceCounters()
     )
     
     # Create and insert the initial particles
@@ -112,6 +120,10 @@ function (@main)(args)
     output_file = @sprintf "%s_DSMCState_%08.4f.h5" sim_config.project_name sim_config.t_end
     @printf "Writing flow state to %s...\n" output_file
     
+    if args["profile"]
+        print_performance_stats(sim.perf_counters)
+    end
+
     write_macro_vals_hdf5(
         joinpath(args["output_dir"], output_file),
         sim_config,
@@ -126,3 +138,7 @@ function (@main)(args)
     #initialize_simulation!(sim, mesh, sim_config, config["initialization"])
     #print(@time run_simulation!(sim, mesh, sim_config))
 end
+
+end
+
+(@main)(args) = LeonsGasKinetics.run(args)

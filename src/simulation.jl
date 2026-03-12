@@ -33,19 +33,24 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         end
         
         # Advect the particles. This also updates the particle cell information.
-        advect!(state, mesh, config, dt)
+        timed_region(state.perf_counters, :advection) do
+            advect!(state, mesh, config, dt)
+        end
 
-
-        # Resort the particles. This is to make the BGK collision routine much simpler and to improve cache locality
+        # Re-sort the particles. This is to make the BGK collision routine much simpler and to improve cache locality
         # for the moment calculation for example.
-        sortperm!(particle_reordering, state.particles.cell; scratch=t)
-        sorted_particles.pos .= state.particles.pos[particle_reordering]
-        sorted_particles.vel .= state.particles.vel[particle_reordering]
-        sorted_particles.cell .= state.particles.cell[particle_reordering]
+        timed_region(state.perf_counters, :sorting) do
+            sortperm!(particle_reordering, state.particles.cell; scratch=t)
+            sorted_particles.pos .= state.particles.pos[particle_reordering]
+            sorted_particles.vel .= state.particles.vel[particle_reordering]
+            sorted_particles.cell .= state.particles.cell[particle_reordering]
+        end
 
         # Calculate moments
-        accumulate_moments!(moments, sorted_particles)
-        
+        timed_region(state.perf_counters, :accumulate_moments) do
+            accumulate_moments!(moments, sorted_particles)
+        end
+
         # Add the moments to the time average
         if state.time > sampling_start_time
             if state.time - dt < sampling_start_time && !config.silent
@@ -57,13 +62,15 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         end
     
         # Perform the collision step
-        particle_start_idx = 1
-        for i in 1:n_cells
-            flow_vars = calc_flow_properties(moments[i], config, mesh.cells[i].volume)
-            particle_x = @view sorted_particles.pos[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
-            particle_v = @view sorted_particles.vel[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
-            config.collision_operator(particle_x, particle_v, config, flow_vars, dt)
-            particle_start_idx += state.cell_part_count[i]
+        timed_region(state.perf_counters, :collision) do
+            particle_start_idx = 1
+            for i in 1:n_cells
+                flow_vars = calc_flow_properties(moments[i], config, mesh.cells[i].volume)
+                particle_x = @view sorted_particles.pos[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
+                particle_v = @view sorted_particles.vel[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
+                config.collision_operator(particle_x, particle_v, config, flow_vars, dt)
+                particle_start_idx += state.cell_part_count[i]
+            end
         end
 
         # Clear moments

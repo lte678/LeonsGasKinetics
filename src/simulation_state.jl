@@ -11,4 +11,5 @@ mutable struct SimulationState
     cell_part_count :: Vector{UInt32}
     # Current simulation time
     time :: Float64
+    perf_counters :: PerformanceCounters
 end
