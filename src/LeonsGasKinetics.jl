@@ -16,7 +16,6 @@ using Accessors
 using JET
 using DataStructures
 
-include("utilities.jl")
 include("constants.jl")
 include("averaging.jl")
 include("sampling/maxwellian.jl")
@@ -147,7 +146,10 @@ function run(args)
     #print(@time run_simulation!(sim, mesh, sim_config))
 end
 
-export main
-(@main)(args) = run(args)
+export run_simulation!, run_simulation_from_config
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    (@main)(args) = run(args)
+end
 
 end

@@ -98,3 +98,37 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
 
     return cell_accumulators
 end
+
+"""
+Load configuration, run simulation, and return postprocessed volume data without 
+writing HDF5 output.
+"""
+function run_simulation_from_config(config_path::String; enable_asserts=false)
+    @assert isfile(config_path) "Config file not found: $config_path"
+    
+    config = TOML.parsefile(config_path)
+    config_dir = dirname(config_path)
+    
+    # Create mesh
+    meshfile_path = joinpath(config_dir, config["meshfile"])
+    mesh = mesh_from_h5(meshfile_path)
+    
+    # Build simulation configuration
+    sim_config = sim_config_from_config(config, config_dir, enable_asserts, mesh.bc_names)
+    
+    # Initialize simulation
+    sim = SimulationState(
+        ParticleData(),
+        [],
+        0.0,
+        PerformanceCounters()
+    )
+    initialize_simulation!(sim, mesh, sim_config, config["initialization"])
+    
+    volume_samples = run_simulation!(sim, mesh, sim_config)
+    
+    # Postprocess to get macroscopic quantities (velocity, temperature, etc.)
+    volume_output = postprocess(volume_samples, sim_config, mesh)
+    
+    return volume_output, sim_config, mesh
+end

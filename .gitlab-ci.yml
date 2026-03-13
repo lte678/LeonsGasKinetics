@@ -1,0 +1,41 @@
+stages:
+  - test
+
+variables:
+  # Keep Julia packages in the project directory for caching
+  JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia"
+  JULIA_COLOR: "yes"
+  JULIA_NUM_THREADS: "1"
+
+# Cache the Julia depot between pipeline runs to speed up builds
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .julia/compiled/
+    - .julia/packages/
+    - .julia/artifacts/
+    - .julia/registries/
+  policy: pull-push
+
+test:
+  stage: test
+  image: julia:1.12  # Use specific version or 'julia:latest'
+  
+  before_script:
+    # Install system dependencies if needed (e.g., for HDF5)
+    # - apt-get update -qq && apt-get install -y -qq hdf5-tools || true
+    
+    # Instantiate the project (install dependencies)
+    - julia --project=@. -e 'using Pkg; Pkg.instantiate(); Pkg.build()'
+  
+  script:
+    # Run the test suite (executes test/runtests.jl)
+    - julia --project=@. -e 'using Pkg; Pkg.test(; coverage=true)'
+  
+  coverage: '/\(\d+.\d+\%\) covered/'
+  
+  artifacts:
+    when: always
+    paths:
+      - coverage/
+    expire_in: 1 week
