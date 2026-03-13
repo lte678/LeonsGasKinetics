@@ -12,12 +12,14 @@ function swap!(array, idx1, idx2)
 end
 
 
-function bgk_collision!(particle_x, particle_v, config::SimulationConfig, flow_vars::FlowProperties, dt)
+function bgk_collision!(particle_x, particle_v, samples, config::SimulationConfig, flow_vars::FlowProperties, dt)
     if length(particle_x) < 2
+        add_sample!(samples[:relaxation_rate], 0.0)
         return
     end
+
     if length(config.species) > 1
-        error("\"bgk\" collision operator only supports single species.")
+        error("\"BGK\" collision operator only supports single species.")
     end
     spec = config.species[1]
     n_part = length(particle_x)
@@ -44,4 +46,8 @@ function bgk_collision!(particle_x, particle_v, config::SimulationConfig, flow_v
         sample_v = @view particle_v[1:n_relaxed - 1]
         sample_maxwellian!(sample_v, flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
     end
+
+    # Update cell averages
+    add_sample!(samples[:dynamic_viscosity], dyn_visc)
+    add_sample!(samples[:relaxation_rate], n_relaxed / n_part)
 end

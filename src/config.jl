@@ -82,7 +82,7 @@ function coll_op_from_config(operator_name)
     if operator_name == "bgk"
         return bgk_collision!
     elseif operator_name == "none"
-        return (part_x, part_v, config, flow_variables, dt) -> ()
+        return (part_x, part_v, samples, config, flow_variables, dt) -> ()
     else
         error("Unknown DSMC collision operator \"$operator_name\"")
     end

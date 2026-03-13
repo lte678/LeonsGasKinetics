@@ -14,9 +14,8 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
     n_cells = length(mesh.cells)
 
     # Avoid reallocation inside loop
-    moments = [MomentAccumulator() for _ in 1:n_cells]
-    moments_avg = [MomentAccumulator() for _ in 1:n_cells]
-    # flow_vars = [FlowProperties() for _ in 1:length(mesh.cells)]
+    cell_moments = [MomentAccumulator() for _ in 1:n_cells]
+    cell_accumulators = [DefaultDict{Symbol, Averager}(() -> Averager()) for _ in 1:n_cells]
 
     particle_reordering = zeros(Int, length(state.particles))
     _, t = Base.Sort.make_scratch(nothing, eltype(particle_reordering), length(particle_reordering))
@@ -48,7 +47,22 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
 
         # Calculate moments
         timed_region(state.perf_counters, :accumulate_moments) do
-            accumulate_moments!(moments, sorted_particles)
+            accumulate_moments!(cell_moments, sorted_particles)
+        end
+    
+        # Perform the collision step
+        timed_region(state.perf_counters, :collision) do
+            particle_start_idx = 1
+            for i in 1:n_cells
+                flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
+                particle_x = @view sorted_particles.pos[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
+                particle_v = @view sorted_particles.vel[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
+
+                # Perform collision on the current cell's particles.
+                config.collision_operator(particle_x, particle_v, cell_accumulators[i], config, flow_vars, dt)
+                
+                particle_start_idx += state.cell_part_count[i]
+            end
         end
 
         # Add the moments to the time average
@@ -56,25 +70,19 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
             if state.time - dt < sampling_start_time && !config.silent
                 @printf "Starting sampling.\n"
             end
-            for i = 1:length(moments)
-                add_moment!(moments_avg[i], moments[i])
-            end
-        end
-    
-        # Perform the collision step
-        timed_region(state.perf_counters, :collision) do
-            particle_start_idx = 1
-            for i in 1:n_cells
-                flow_vars = calc_flow_properties(moments[i], config, mesh.cells[i].volume)
-                particle_x = @view sorted_particles.pos[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
-                particle_v = @view sorted_particles.vel[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
-                config.collision_operator(particle_x, particle_v, config, flow_vars, dt)
-                particle_start_idx += state.cell_part_count[i]
+            for i = 1:length(cell_moments)
+                add_sample!(cell_accumulators[i][:c_x] , cell_moments[i].c_i[1]  / cell_moments[i].count)
+                add_sample!(cell_accumulators[i][:c_y] , cell_moments[i].c_i[2]  / cell_moments[i].count)
+                add_sample!(cell_accumulators[i][:c_z] , cell_moments[i].c_i[3]  / cell_moments[i].count)
+                add_sample!(cell_accumulators[i][:c_xx], cell_moments[i].c_ii[1] / cell_moments[i].count)
+                add_sample!(cell_accumulators[i][:c_yy], cell_moments[i].c_ii[2] / cell_moments[i].count)
+                add_sample!(cell_accumulators[i][:c_zz], cell_moments[i].c_ii[3] / cell_moments[i].count)
+                add_sample!(cell_accumulators[i][:count], cell_moments[i].count)
             end
         end
 
         # Clear moments
-        clear_moments!(moments)
+        clear_moments!(cell_moments)
         
         # Swap sorting array
         state.particles.pos .= sorted_particles.pos
@@ -88,5 +96,5 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         iteration += 1
     end
 
-    return map((m, c) -> calc_flow_properties(m, config, c.volume), moments_avg, mesh.cells)
+    return cell_accumulators
 end

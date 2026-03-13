@@ -14,8 +14,11 @@ using InteractiveUtils
 using ArgParse
 using Accessors
 using JET
+using DataStructures
 
+include("utilities.jl")
 include("constants.jl")
+include("averaging.jl")
 include("sampling/maxwellian.jl")
 include("particle_data.jl")
 include("performance_counters.jl")
@@ -31,7 +34,8 @@ include("models/atomic.jl")
 include("collisions/bgk.jl")
 include("advection.jl")
 include("simulation.jl")
-include("output.jl")
+include("postprocessing/postprocessing.jl")
+include("postprocessing/hdf5_output.jl")
 
 
 # To ease getting performance metrics.
@@ -76,7 +80,11 @@ function run(args)
     println("Leon's Gas Kinetics  Copyright (C) 2025 Leon Teichroeb")
     println("This program comes with ABSOLUTELY NO WARRANTY; for details see LICENSE.")
     println()
+
     config_path = args["config_file"]
+    if !isfile(config_path)
+        error("Failed to find config file $config_path")
+    end
     config = TOML.parsefile(config_path)
     
     # Create the mesh
@@ -104,34 +112,34 @@ function run(args)
     # Output simulation stats
     print_particle_data_info(sim.particles)
 
-
-    #moments = calc_moments(sim.particles, length(sim.mesh.cells))
-    #flow_vars = map(m -> calc_flow_properties(m, specie["mass"]), moments)
-    # code_native(accumulate_moments!, (Vector{MomentAccumulator}, ParticleData))
-    # @perfmon "FLOPS_SP" calc_moments(sim.particles, length(mesh.cells))
-
-    #println(@report_opt run_simulation!(sim, mesh, sim_config))
     elapsed = @elapsed begin
-        #averages = @perfmon "FLOPS_SP" run_simulation!(sim, mesh, sim_config)
-        averages = run_simulation!(sim, mesh, sim_config)
+        # For profiling the average flops
+        #volume_samples = @perfmon "FLOPS_SP" run_simulation!(sim, mesh, sim_config)
+        volume_samples = run_simulation!(sim, mesh, sim_config)
     end
 
     @printf "Simulation finished in %.1f seconds.\n" elapsed
+    
+    @printf "\nPost-processing...\n"
+    start_timing!(:postprocessing, sim.perf_counters)
+    volume_output = postprocess(volume_samples, sim_config, mesh)
+    end_timing!(:postprocessing, sim.perf_counters)
+    
     output_file = @sprintf "%s_DSMCState_%08.4f.h5" sim_config.project_name sim_config.t_end
     @printf "Writing flow state to %s...\n" output_file
-    
-    if args["profile"]
-        print_performance_stats(sim.perf_counters)
-    end
-
-    write_macro_vals_hdf5(
+        
+    write_volume_data_hdf5(
         joinpath(args["output_dir"], output_file),
         sim_config,
-        averages,
+        volume_output,
         sim_config.t_end,
         true
     )
-
+        
+    if args["profile"]
+        println()
+        print_performance_stats(sim.perf_counters)
+    end
     # Benchmark
     #@printf "Profiling"
     #sim = SimulationState(ParticleData(), [], 0.0)
@@ -139,6 +147,7 @@ function run(args)
     #print(@time run_simulation!(sim, mesh, sim_config))
 end
 
-end
+export main
+(@main)(args) = run(args)
 
-(@main)(args) = LeonsGasKinetics.run(args)
+end

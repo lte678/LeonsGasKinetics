@@ -46,8 +46,10 @@ function write_piclas_attribute(file, name, value)
     end
 end
 
-
-function write_macro_vals_hdf5(path::String, config::SimulationConfig, macro_vals::Vector{FlowProperties}, time::Float64, compat_mode)
+"""
+`volume_data` must contain vectors of length N_cells
+"""
+function write_volume_data_hdf5(path::String, config::SimulationConfig, volume_data, time::Float64, compat_mode)
     h5file = h5open(path, "w")
 
     if compat_mode
@@ -70,28 +72,10 @@ function write_macro_vals_hdf5(path::String, config::SimulationConfig, macro_val
     write_attr_func(h5file, "NSpecies", length(config.species))
     write_attr_func(h5file, "Time", time)
 
-    var_names = [
-        "Total_VeloX",
-        "Total_VeloY",
-        "Total_VeloZ",
-        "Total_TempTransX",
-        "Total_TempTransY",
-        "Total_TempTransZ",
-        "Total_NumberDensity",
-        "Total_SimPartNum",
-        "Total_TempTransMean",
-    ]
-
-    # Write dataset
-    write_attr_func(h5file, "VarNamesAdd", var_names)
-    h5_array = zeros(9, length(macro_vals))
-    for i = 1:length(macro_vals)
-        h5_array[1:3, i] = macro_vals[i].velocity
-        h5_array[4:6, i] = macro_vals[i].temperature
-        h5_array[7, i] = macro_vals[i].density
-        h5_array[8, i] = macro_vals[i].sim_particle_count
-        h5_array[9, i] = macro_vals[i].mean_temperature
-    end
+    # Write dataset. Uses names from dictionary
+    write_attr_func(h5file, "VarNamesAdd", collect(keys(volume_data)))
+    
+    h5_array = permutedims(reduce(hcat, values(volume_data)))
     write_dataset(h5file, "ElemData", h5_array)
 
     close(h5file)

@@ -4,6 +4,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# This file contains functions for the calculation of moments, such as velocity and temperature.
+# Sampling averaging is considered a separate task and is handled in averaging.jl
+
 using StaticArrays
 
 struct FlowProperties
@@ -72,21 +75,33 @@ function clear_moments!(moments::Vector{MomentAccumulator})
 end
 
 
-function calc_flow_properties(moments :: MomentAccumulator, config, cell_volume)
-    if moments.count < eps(Float64)
-        return FlowProperties()
-    end
-    
-    velocity = moments.c_i / moments.count
-    c2 = moments.c_ii / moments.count
-    temperature = (config.species[1].mass / BOLTZMANN) * (c2 - velocity.^2)
-    sim_part_count = moments.count / moments.samples
+"""
+Calculates macroscopic flow properties based on the mean velocity, squared velocity and particle number.
+`c_i` is the sum of velocities, while `c_ii` is the sum of square velocities.
+"""
+function calc_flow_properties(count, c_i, c_ii, config, cell_volume)
+    temperature = (config.species[1].mass / BOLTZMANN) * (c_ii - c_i.^2)
+    sim_part_count = count
     density = sim_part_count * config.mpf / cell_volume
+    
     return FlowProperties(
-        velocity,
+        c_i,
         temperature,
         sum(temperature) / 3.0,
         density,
         sim_part_count,
+    )
+end
+
+function calc_flow_properties(moments :: MomentAccumulator, config, cell_volume)
+    if moments.count < eps(Float64)
+        return FlowProperties()
+    end
+    calc_flow_properties(
+        moments.count / moments.samples,
+        moments.c_i / moments.count,
+        moments.c_ii / moments.count,
+        config,
+        cell_volume
     )
 end
