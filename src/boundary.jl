@@ -8,41 +8,59 @@ using StaticArrays
 using LightSumTypes
 
 
-struct SymmetricBoundary end
-struct ReflectiveBoundary end
-struct DiffuseBoundary
-    accommodation :: Float64
-    temperature :: Float64
-    velocity :: SVector{3, Float64}
-end
-
-@sumtype Boundary(SymmetricBoundary, ReflectiveBoundary, DiffuseBoundary)
-
-handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::Boundary) = handle_boundary(particle, normal, species, variant(boundary))
+handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::Boundary, config::SimulationConfig) =
+    handle_boundary(particle, normal, species, variant(boundary), config)
 
 """
 Handles a "symmetric" boundary.
 This is equivalent to a periodic boundary where the cells are self-connected.
 Therefore, only one cell's width is permitted in the symmetry direction.
 """
-function handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::SymmetricBoundary) :: SingleParticle
+function handle_boundary(
+    particle::SingleParticle,
+    normal::SVector{3},
+    species::SpeciesConfig,
+    boundary::SymmetricBoundary,
+    config::SimulationConfig
+) :: SingleParticle
     # `SingleParticle` is immutable, since this change will not propagate into the `ParticleData` collection 
     particle = @set particle.pos -= 2*abs.(normal).*particle.pos
     return particle
 end
 
-function handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::ReflectiveBoundary) :: SingleParticle
+function handle_boundary(
+    particle::SingleParticle,
+    normal::SVector{3},
+    species::SpeciesConfig,
+    boundary::ReflectiveBoundary,
+    config::SimulationConfig
+) :: SingleParticle
     post_particle = @set particle.vel -= 2*normal*dot(normal, particle.vel)
     return post_particle
 end
 
 
-function handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::DiffuseBoundary) :: SingleParticle
-    # TODO: variance reduction
+function handle_boundary(
+    particle::SingleParticle,
+    normal::SVector{3},
+    species::SpeciesConfig,
+    boundary::DiffuseBoundary,
+    config::SimulationConfig
+) :: SingleParticle
     vmag2 = particle.vel[1]^2 + particle.vel[2]^2 + particle.vel[3]^2
     new_local_vel = sample_wall_distribution(vmag2, boundary.temperature, boundary.accommodation, species.mass)
     new_vel = new_local_vel[1]*[0, 1, 0] + new_local_vel[2]*[0, 0, 1] + new_local_vel[3]*normal
     new_vel += boundary.velocity
+
+    # Update the variance reduction weight if applicable
+    if haskey(particle.features, :vr_weight)
+        # Does not contain number density, since this is added at the end of the advection step.
+        particle = @set particle.features.vr_weight =
+            sqrt(boundary.temperature / config.vrbgk.ref_temperature) *
+            maxwellian(config.vrbgk.ref_temperature, zeros(3)         , species.mass, new_vel) /
+            maxwellian(        boundary.temperature, boundary.velocity, species.mass, new_vel)
+    end
+
     return @set particle.vel = new_vel
 end
 

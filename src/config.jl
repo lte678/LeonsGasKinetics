@@ -4,11 +4,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+struct SymmetricBoundary end
+struct ReflectiveBoundary end
+struct DiffuseBoundary
+    accommodation :: Float64
+    temperature :: Float64
+    velocity :: SVector{3, Float64}
+end
+
+@sumtype Boundary(SymmetricBoundary, ReflectiveBoundary, DiffuseBoundary)
+
+
 struct VRBGKConfig
     enabled :: Bool
     ref_temperature :: Float64
     ref_density :: Float64
 end
+
 
 struct SimulationConfig{T1<:Function}
     # Species definition
