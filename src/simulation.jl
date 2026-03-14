@@ -116,8 +116,8 @@ function run_simulation_from_config(config_path::String; enable_asserts=false)
     
     # Initialize simulation
     sim = SimulationState(
-        ParticleData(),
-        [],
+        ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled),
+        Vector{UInt32}(),
         0.0,
         PerformanceCounters()
     )
