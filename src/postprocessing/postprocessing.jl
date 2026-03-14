@@ -5,30 +5,17 @@ Converts raw samples into macroscopic cell values.
 function postprocess(accumulators, config, mesh)
     means = [OrderedDict(k => mean(v) for (k, v) in acc) for acc in accumulators]
 
-    output = OrderedDict{String, Vector{Float64}}()
-
-    flow_vars = map(
-        (mean, c) -> calc_flow_properties(
-            mean[:count],
-            [mean[:c_x], mean[:c_y], mean[:c_z]],
-            [mean[:c_xx], mean[:c_yy], mean[:c_zz]],
-            config,
-            c.volume
-        ),
-        means, mesh.cells
+    output = OrderedDict{String, Vector{Float64}}(
+        "Total_VeloX" => [acc[:u_x] for acc in means],
+        "Total_VeloY" => [acc[:u_y] for acc in means],
+        "Total_VeloZ" => [acc[:u_z] for acc in means],
+        "Total_TempTransX" => [acc[:T_x] for acc in means],
+        "Total_TempTransY" => [acc[:T_y] for acc in means],
+        "Total_TempTransZ" => [acc[:T_z] for acc in means],
+        "Total_NumberDensity" => [acc[:density] for acc in means],
+        "Total_SimPartNum" => [acc[:sim_part_count] for acc in means],
+        "Total_TempTransMean" => [(acc[:T_x] + acc[:T_y] + acc[:T_z])/3.0 for acc in means],
     )
-
-    output = merge(output, OrderedDict{String, Vector{Float64}}(
-        "Total_VeloX" => [fp.velocity[1] for fp in flow_vars],
-        "Total_VeloY" => [fp.velocity[2] for fp in flow_vars],
-        "Total_VeloZ" => [fp.velocity[3] for fp in flow_vars],
-        "Total_TempTransX" => [fp.temperature[1] for fp in flow_vars],
-        "Total_TempTransY" => [fp.temperature[2] for fp in flow_vars],
-        "Total_TempTransZ" => [fp.temperature[3] for fp in flow_vars],
-        "Total_NumberDensity" => [fp.density for fp in flow_vars],
-        "Total_SimPartNum" => [fp.sim_particle_count for fp in flow_vars],
-        "Total_TempTransMean" => [fp.mean_temperature for fp in flow_vars]
-    ))
 
     if haskey(means[1], :dynamic_viscosity) 
         output["BGK_Viscosity"] = [acc[:dynamic_viscosity] for acc in means]

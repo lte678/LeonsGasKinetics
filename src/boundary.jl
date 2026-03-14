@@ -26,33 +26,24 @@ This is equivalent to a periodic boundary where the cells are self-connected.
 Therefore, only one cell's width is permitted in the symmetry direction.
 """
 function handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::SymmetricBoundary) :: SingleParticle
-    #println("$(particle.pos) -> $(particle.pos - 2*abs.(normal).*particle.pos), vel=$(particle.vel), norm=$normal")
-    return SingleParticle(
-        particle.pos - 2*abs.(normal).*particle.pos,
-        particle.vel,
-        particle.cell,
-    )
+    # `SingleParticle` is immutable, since this change will not propagate into the `ParticleData` collection 
+    particle = @set particle.pos -= 2*abs.(normal).*particle.pos
+    return particle
 end
 
 function handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::ReflectiveBoundary) :: SingleParticle
-    return SingleParticle(
-        particle.pos,
-        particle.vel - 2*normal*dot(normal, particle.vel),
-        particle.cell,
-    )
+    post_particle = @set particle.vel -= 2*normal*dot(normal, particle.vel)
+    return post_particle
 end
 
 
 function handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::DiffuseBoundary) :: SingleParticle
+    # TODO: variance reduction
     vmag2 = particle.vel[1]^2 + particle.vel[2]^2 + particle.vel[3]^2
-    new_local_vel = wall_distribution(vmag2, boundary.temperature, boundary.accommodation, species.mass)
+    new_local_vel = sample_wall_distribution(vmag2, boundary.temperature, boundary.accommodation, species.mass)
     new_vel = new_local_vel[1]*[0, 1, 0] + new_local_vel[2]*[0, 0, 1] + new_local_vel[3]*normal
     new_vel += boundary.velocity
-    return SingleParticle(
-        particle.pos,
-        new_vel,
-        particle.cell,
-    )
+    return @set particle.vel = new_vel
 end
 
 
@@ -76,7 +67,7 @@ randomised in the tangent plane.
 3-component velocity vector (m/s) in the wall-local frame
 (tang₁, tang₂, normal).
 """
-function wall_distribution(velo_square, wall_temp, trans_acc, mass_ic)
+function sample_wall_distribution(velo_square, wall_temp, trans_acc, mass_ic)
     # Helper: Box-Muller transform
     randn() = sqrt(-log(rand()))
 

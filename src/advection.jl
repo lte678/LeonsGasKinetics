@@ -20,6 +20,7 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
         while time_remaining > 0.0
             cell = mesh.cells[p.cell]
             p_old = p
+            take_advection_step(p, time_remaining, cell, config.boundaries, config)
             p, time_remaining = take_advection_step(p, time_remaining, cell, config.boundaries, config)
 
             if config.asserts && !cell_contains(mesh.cells[p.cell], p.pos)

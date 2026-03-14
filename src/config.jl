@@ -4,6 +4,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+struct VRBGKConfig
+    enabled :: Bool
+    ref_temperature :: Float64
+    ref_density :: Float64
+end
+
 struct SimulationConfig{T1<:Function}
     # Species definition
     species :: Vector{SpeciesConfig}
@@ -27,10 +33,12 @@ struct SimulationConfig{T1<:Function}
     silent :: Bool
     # Whether to enable asserts or not
     asserts :: Bool
+    # Settings for VRBGK
+    vrbgk :: VRBGKConfig
 end
 
 
-function sim_config_from_config(config, config_dir, asserts, bc_order)
+function sim_config_from_config(config, config_dir, asserts, bc_order) :: SimulationConfig
     species = convert(Dict{String, Dict{String, Float64}}, config["species"])
     if length(species) > 1
         error("Multi-species flow is not supported yet.")
@@ -45,6 +53,16 @@ function sim_config_from_config(config, config_dir, asserts, bc_order)
         push!(boundaries, Boundary(boundary_from_config(config["boundary"][bc_idx])))
     end
 
+    if haskey(config, "denoise") && config["denoise"]["enabled"]
+        vrbgk_config = VRBGKConfig(
+            true,
+            config["denoise"]["T_ref"],
+            config["denoise"]["n_ref"],
+        )
+    else
+        vrbgk_config = VRBGKConfig(false, 0.0, 0.0)
+    end
+
     return SimulationConfig(
         species,
         boundaries,
@@ -57,6 +75,7 @@ function sim_config_from_config(config, config_dir, asserts, bc_order)
         joinpath(config_dir, config["meshfile"]),
         false,
         asserts,
+        vrbgk_config,
     )
 end
 
@@ -82,7 +101,7 @@ function coll_op_from_config(operator_name)
     if operator_name == "bgk"
         return bgk_collision!
     elseif operator_name == "none"
-        return (part_x, part_v, samples, config, flow_variables, dt) -> ()
+        return (pdata, samples, config, flow_variables, dt) -> ()
     else
         error("Unknown DSMC collision operator \"$operator_name\"")
     end
