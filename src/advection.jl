@@ -5,18 +5,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using JET
+import AcceleratedKernels as AK
 
 """
 Performs the advection step.
 """
 function advect!(sim::SimulationState, mesh::Mesh, config, dt)
-    for i = 1:length(sim.particles)
-        # The travel time left for this particle.
+    particles = sim.particles
+
+    AK.foreachindex(particles, max_tasks=Threads.nthreads()) do i
         time_remaining = dt
-        p = sim.particles[i]
-        sim.cell_part_count[p.cell] -= 1
-        
-        # Keep colliding with further faces until the time_remaining has elapsed.
+        p = particles[i]
+
         while time_remaining > 0.0
             cell = mesh.cells[p.cell]
             p_old = p
@@ -29,10 +29,15 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
             end
         end
 
-        sim.particles[i] = p
-        sim.cell_part_count[p.cell] += 1
+        particles[i] = p
     end
     
+    # Recount after parallel advection to avoid write races on cell_part_count.
+    fill!(sim.cell_part_count, 0)
+    for p in sim.particles
+        sim.cell_part_count[p.cell] += 1
+    end
+
     if config.asserts
         assert_particles_in_mesh(sim.particles, mesh)
         assert_cell_part_count(sim.particles, sim.cell_part_count)

@@ -5,7 +5,7 @@ variables:
   # Keep Julia packages in the project directory for caching
   JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia"
   JULIA_COLOR: "yes"
-  JULIA_NUM_THREADS: "1"
+  JULIA_NUM_THREADS: "4"
 
 # Cache the Julia depot between pipeline runs to speed up builds
 cache:

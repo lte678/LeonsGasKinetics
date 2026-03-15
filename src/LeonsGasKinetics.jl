@@ -80,6 +80,7 @@ function run(args)
     println("This program comes with ABSOLUTELY NO WARRANTY; for details see LICENSE.")
     println()
 
+    println("Executing on CPU with $(Threads.nthreads()) threads.")
     config_path = args["config_file"]
     if !isfile(config_path)
         error("Failed to find config file $config_path")

@@ -5,6 +5,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using StaticArrays
+using KernelAbstractions
 
 
 struct SpeciesConfig
@@ -91,6 +92,14 @@ end
 
 Base.length(particles::ParticleData) = length(particles.pos)
 
+function Base.iterate(pdata::ParticleData, i=1)
+    i > length(pdata) && return nothing
+    return (pdata[i], i + 1)
+end
+
+Base.keys(pdata::ParticleData) = keys(pdata.pos)
+
+KernelAbstractions.get_backend(pdata::ParticleData) = get_backend(pdata.pos)
 
 """
     insert_particle!(pdata::ParticleData, position::AbstractVector{<:Number}, velocity::AbstractVector{<:Number}, cell)

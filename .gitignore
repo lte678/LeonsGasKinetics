@@ -30,3 +30,5 @@ JuliaLocalPreferences.toml
 # Tools
 .vscode/
 .aider*
+*.h5
+*.vtu
