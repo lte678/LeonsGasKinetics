@@ -24,7 +24,7 @@ function handle_boundary(
     config::SimulationConfig
 ) :: SingleParticle
     # `SingleParticle` is immutable, since this change will not propagate into the `ParticleData` collection 
-    particle = @set particle.pos -= 2*abs.(normal).*particle.pos
+    particle = @set particle.pos -= 2*(particle.pos ⋅ normal)*normal
     return particle
 end
 
@@ -49,6 +49,7 @@ function handle_boundary(
 ) :: SingleParticle
     vmag2 = particle.vel[1]^2 + particle.vel[2]^2 + particle.vel[3]^2
     new_local_vel = sample_wall_distribution(vmag2, boundary.temperature, boundary.accommodation, species.mass)
+    # TODO: Produce perpendicular vector pair according to normal (critical!)
     new_vel = new_local_vel[1]*[0, 1, 0] + new_local_vel[2]*[0, 0, 1] + new_local_vel[3]*normal
     new_vel += boundary.velocity
 

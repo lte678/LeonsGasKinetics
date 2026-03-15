@@ -182,7 +182,7 @@ function calc_flow_properties(moments::VRBGKMomentAccumulator, config, cell_volu
     count_vr = moments.count - moments.vr_sum + count_eq
 
     # Velocity
-    c_i = moments.c_i / moments.count
+    c_i = moments.c_i ./ moments.count
     c_ii = moments.c_ii ./ moments.count .+ (count_eq / count_vr) * BOLTZMANN * T_eq / mass
     
     # Thermal velocity squared
