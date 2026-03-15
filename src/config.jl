@@ -37,6 +37,8 @@ struct SimulationConfig{T1<:Function}
     dt :: Float64
     # Sampling fraction
     sample_fraction :: Float64
+    # Reporting inveral for console output
+    report_interval :: Float64
     # Project name
     project_name :: String
     # Meshfile
@@ -83,6 +85,7 @@ function sim_config_from_config(config, config_dir, asserts, bc_order) :: Simula
         config["timestep"]["tend"],
         config["timestep"]["dt"],
         get(config["output"], "sample_fraction", 1.0),
+        get(config["output"], "report_interval", 5.0),
         config["name"],
         joinpath(config_dir, config["meshfile"]),
         false,

@@ -26,6 +26,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
     particle_data_scratch = ParticleData(length(state.particles); vrbgk_enabled=config.vrbgk.enabled)
 
     iteration = 1
+    reporter = ProgressReporter(config.report_interval)
     while state.time < config.t_end
         # Gracefully handle the final timestep. Make sure we dont make a zero length step afterwards.
         if state.time + dt > config.t_end
@@ -87,9 +88,8 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         # Clear moments
         clear_moments!(cell_moments)
 
-        if iteration % 1000 == 0 && !config.silent
-            @printf "[Iteration = %6d]\n" iteration
-        end
+        # Print report every config.report_interval seconds.
+        config.silent || maybe_report!(reporter, iteration, state.time)
 
         iteration += 1
     end
@@ -129,4 +129,20 @@ function run_simulation_from_config(config_path::String; enable_asserts=false)
     volume_output = postprocess(volume_samples, sim_config, mesh)
     
     return volume_output, sim_config, mesh
+end
+
+
+mutable struct ProgressReporter
+    last_report_time::Float64
+    report_interval::Float64
+end
+
+ProgressReporter(interval::Float64) = ProgressReporter(time(), interval)
+
+function maybe_report!(reporter::ProgressReporter, iteration::Int, sim_time::Float64)
+    now = time()
+    if now - reporter.last_report_time >= reporter.report_interval
+        @printf "[Iteration = %6d] t = %8.3fμs\n" iteration sim_time * 1e6
+        reporter.last_report_time = now
+    end
 end
