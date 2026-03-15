@@ -23,7 +23,8 @@ test:
   
   before_script:
     # Install system dependencies if needed (e.g., for HDF5)
-    # - apt-get update -qq && apt-get install -y -qq hdf5-tools || true
+    #- apt-get update -qq && apt-get install -y -qq hdf5-tools || true
+    - apt-get update -qq && apt-get install -y -qq likwid || true
     
     # Instantiate the project (install dependencies)
     - julia --project=@. -e 'using Pkg; Pkg.instantiate(); Pkg.build()'
