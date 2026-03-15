@@ -31,12 +31,6 @@ test:
   
   script:
     # Run the test suite (executes test/runtests.jl)
-    - julia --project=@. -e 'using Pkg; Pkg.test(; coverage=true)'
-  
-  coverage: '/\(\d+.\d+\%\) covered/'
-  
-  artifacts:
-    when: always
-    paths:
-      - coverage/
-    expire_in: 1 week
+    # - julia --project=@. -e 'using Pkg; Pkg.test(; coverage=true)'
+    # NOTE: Coverage has a very large performance impact.
+    - julia --project=@. -e 'using Pkg; Pkg.test()'
