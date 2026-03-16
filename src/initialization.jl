@@ -11,7 +11,10 @@ function initialize_simulation!(sim::SimulationState, mesh::Mesh, sim_config::Si
     
     for init_config in initializations
         species = init_config["species"]
-        println("Inserting particles of species \"$species\"")
+
+        if !sim_config.silent
+            println("Inserting particles of species \"$species\"")
+        end
         initialize!(sim, mesh, sim_config, init_config)
     end
 
@@ -21,33 +24,12 @@ function initialize_simulation!(sim::SimulationState, mesh::Mesh, sim_config::Si
 end
 
 """
-    initialize!(sim::Simulation, init_dict::Dict)
-
 Initialize particles in the simulation domain based on the provided initialization dictionary.
 
 This function creates particles according to the specified density, temperature, and velocity
 parameters. The number of particles in each cell is determined by the cell volume, density,
 and macro particle factor (mpf). Particles are placed at random positions within each cell
 and assigned velocities according to the specified velocity distribution.
-
-# Arguments
-- `sim::Simulation`: The simulation structure containing particles, mesh, and mpf
-- `init_dict::Dict`: Initialization parameters with the following keys:
-    - `density::Float64`: Number density of particles [m^-3]
-    - `temperature::Float64`: Temperature [K]
-    - `velocity::Vector{Float64}`: Bulk velocity vector [m/s]
-    - `velocity_dist::String`: Velocity distribution type ("maxwell" for Maxwell-Boltzmann)
-
-# Examples
-```julia
-init_params = Dict(
-    "density" => 1.3e18,
-    "temperature" => 280.0,
-    "velocity" => [1.0, 0.0, 0.0],
-    "velocity_dist" => "maxwell"
-)
-initialize!(sim, init_params)
-```
 """
 function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationConfig, init_dict::Dict)
     # Extract initialization parameters
@@ -57,6 +39,8 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
     bulk_velocity = get(init_dict, "velocity", [0.0, 0.0, 0.0])
     velocity_dist = get(init_dict, "velocity_dist", "maxwell")
     
+    total_inserted = 0
+
     # Process each cell in the mesh
     for (cell_i, cell) in enumerate(mesh.cells)
         # Calculate cell volume using numerical integration
@@ -66,25 +50,26 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
         num_real_particles = density * volume
         
         # Calculate number of macro particles based on mpf
-        num_macro_particles = round(Int, num_real_particles / sim_config.mpf)
+        num_particles = round(Int, num_real_particles / sim_config.mpf)
+
         # Skip cells with no particles
-        if num_macro_particles <= 0
+        if num_particles <= 0
             continue
         end
         
         # Generate random positions within the cell using rejection sampling
-        positions = _intialize_positions(variant(cell), num_macro_particles)
+        positions = _intialize_positions(variant(cell), num_particles)
         
         # Generate velocities based on distribution
         if velocity_dist == "maxwell"
             mass = sim_config.species[findfirst(s -> s.name == species, sim_config.species)].mass
-            velocities = sample_maxwellian(temperature, bulk_velocity, mass, num_macro_particles)
+            velocities = sample_maxwellian(temperature, bulk_velocity, mass, num_particles)
         else
             throw(ArgumentError("Unsupported velocity distribution: $velocity_dist"))
         end
         
         # Insert particles into the simulation
-        for i in 1:num_macro_particles
+        for i in 1:num_particles
             feature_fields = []
             if sim_config.vrbgk.enabled
                 # Ratio of probabilities. Used for importance sampling. See VRBGK papers.
@@ -102,11 +87,17 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
             insert_particle!(sim.particles, p)
             sim.cell_part_count[cell_i] += 1
         end
+
+        total_inserted += num_particles
     end
     
     if sim_config.asserts
         assert_particles_in_mesh(sim.particles, mesh)
         assert_cell_part_count(sim.particles, sim.cell_part_count)
+    end
+
+    if !sim_config.silent
+        println("Inserted $total_inserted particles.")
     end
 
     return sim

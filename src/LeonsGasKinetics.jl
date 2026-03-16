@@ -107,7 +107,9 @@ function run(args)
     sim_config = sim_config_from_config(config, dirname(config_path), args["asserts"], mesh.bc_names)
 
     # This printf is used to precompile.
-    @printf "Pre-compiling...\n"
+    if !sim_config.silent
+        @printf "Pre-compiling...\n"
+    end
     precompile(mesh, sim_config)
 
     # Prepare the simulation structure
