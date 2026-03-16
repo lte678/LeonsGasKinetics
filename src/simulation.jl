@@ -14,6 +14,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
     state = initial_state
     dt = config.dt
     sampling_start_time = (1.0 - config.sample_fraction) * config.t_end
+    last_output_iteration = 0
     n_cells = length(mesh.cells)
 
     # Avoid reallocation inside loop
@@ -72,8 +73,9 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
 
         # Add the moments to the time average
         if state.time > sampling_start_time
-            if state.time - dt < sampling_start_time && !config.silent
-                @printf "Starting sampling.\n"
+            if state.time - dt < sampling_start_time
+                last_output_iteration = iteration - 1
+                config.silent || @printf "Starting sampling.\n"
             end
             for i in 1:n_cells
                 flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
@@ -85,6 +87,14 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                 add_sample!(cell_accumulators[i][:T_z], flow_vars.temperature[3])
                 add_sample!(cell_accumulators[i][:density], flow_vars.density)
                 add_sample!(cell_accumulators[i][:sim_part_count], flow_vars.sim_particle_count)
+            end
+        
+            # Regular outputs
+            if config.output_interval != 0 && iteration >= last_output_iteration + config.output_interval
+                last_output_iteration += config.output_interval
+                timed_region(state.perf_counters, :postprocessing) do
+                    write_flow_state(cell_accumulators, state.time, mesh, config)
+                end
             end
         end
 

@@ -17,7 +17,7 @@ using JET
 using DataStructures
 
 include("constants.jl")
-include("averaging.jl")
+include("statistics.jl")
 include("distributions/maxwellian.jl")
 include("particle_data.jl")
 include("performance_counters.jl")
@@ -33,8 +33,9 @@ include("models/atomic.jl")
 include("collisions/bgk.jl")
 include("advection.jl")
 include("simulation.jl")
-include("postprocessing/postprocessing.jl")
-include("postprocessing/hdf5_output.jl")
+include("output/postprocessing.jl")
+include("output/hdf5_output.jl")
+include("output/output.jl")
 
 
 # To ease getting performance metrics.
@@ -104,7 +105,7 @@ function run(args)
     mesh = mesh_from_h5(meshfile_path)
     
     # Build the simulation configuration structure
-    sim_config = sim_config_from_config(config, dirname(config_path), args["asserts"], mesh.bc_names)
+    sim_config = sim_config_from_config(config, dirname(config_path), args["output_dir"], args["asserts"], mesh.bc_names)
 
     # This printf is used to precompile.
     if !sim_config.silent
@@ -136,22 +137,8 @@ function run(args)
 
     @printf "Simulation finished in %.1f seconds.\n" elapsed
     
-    @printf "\nPost-processing...\n"
-    start_timing!(:postprocessing, sim.perf_counters)
-    volume_output = postprocess(volume_samples, sim_config, mesh)
-    end_timing!(:postprocessing, sim.perf_counters)
-    
-    output_file = @sprintf "%s_DSMCState_%08.4f.h5" sim_config.project_name sim_config.t_end
-    @printf "Writing flow state to %s...\n" output_file
-        
-    write_volume_data_hdf5(
-        joinpath(args["output_dir"], output_file),
-        sim_config,
-        volume_output,
-        sim_config.t_end,
-        true
-    )
-        
+    write_flow_state(volume_samples, sim_config.t_end, mesh, sim_config)
+
     if args["profile"]
         println()
         print_performance_stats(sim.perf_counters)

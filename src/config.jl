@@ -37,12 +37,16 @@ struct SimulationConfig{T1<:Function}
     dt :: Float64
     # Sampling fraction
     sample_fraction :: Float64
+    # Number of iterations between file outputs
+    output_interval :: UInt32
     # Reporting inveral for console output
     report_interval :: Float64
     # Project name
     project_name :: String
     # Meshfile
     mesh_file :: String
+    # Output path
+    output_path :: String
     # Whether to print output
     silent :: Bool
     # Whether to enable asserts or not
@@ -52,7 +56,7 @@ struct SimulationConfig{T1<:Function}
 end
 
 
-function sim_config_from_config(config, config_dir, asserts, bc_order) :: SimulationConfig
+function sim_config_from_config(config, config_dir, output_path, asserts, bc_order) :: SimulationConfig
     species = convert(Dict{String, Dict{String, Float64}}, config["species"])
     if length(species) > 1
         error("Multi-species flow is not supported yet.")
@@ -85,9 +89,11 @@ function sim_config_from_config(config, config_dir, asserts, bc_order) :: Simula
         config["timestep"]["tend"],
         config["timestep"]["dt"],
         get(config["output"], "sample_fraction", 1.0),
+        UInt32(get(config["output"], "output_interval", 1)),
         get(config["output"], "report_interval", 5.0),
         config["name"],
         joinpath(config_dir, config["meshfile"]),
+        output_path,
         false,
         asserts,
         vrbgk_config,
