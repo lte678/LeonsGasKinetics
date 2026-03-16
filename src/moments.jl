@@ -170,17 +170,17 @@ end
 # Variance-reduced flow properties
 function calc_flow_properties(moments::VRBGKMomentAccumulator, config, cell_volume)
     mass = config.species[1].mass
+    mpf = config.mpf
     
     # Global equilibrium properties from config
     n_eq = config.vrbgk.ref_density      # Reference number density [1/m³]
     T_eq = config.vrbgk.ref_temperature  # Reference temperature [K]
     
     # Physical particles represented by equilibrium distribution
-    count_eq = n_eq * cell_volume
+    count_eq = n_eq * cell_volume / mpf
     
     # Particle count
     count_vr = moments.count - moments.vr_sum + count_eq
-
     # Velocity
     c_i = moments.c_i ./ moments.count
     c_ii = moments.c_ii ./ moments.count .+ (count_eq / count_vr) * BOLTZMANN * T_eq / mass
@@ -189,7 +189,7 @@ function calc_flow_properties(moments::VRBGKMomentAccumulator, config, cell_volu
     temperature = (config.species[1].mass / BOLTZMANN) * (c_ii - c_i.^2)
     
     # Number density
-    density = count_vr / cell_volume
+    density = count_vr * mpf / cell_volume
     sim_part_count = moments.count / moments.samples
 
     return FlowProperties(

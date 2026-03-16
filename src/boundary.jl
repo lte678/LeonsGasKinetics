@@ -6,6 +6,7 @@
 
 using StaticArrays
 using LightSumTypes
+using Atomix
 
 
 handle_boundary(particle::SingleParticle, normal::SVector{3}, species::SpeciesConfig, boundary::Boundary, config::SimulationConfig) =
@@ -18,31 +19,34 @@ Therefore, only one cell's width is permitted in the symmetry direction.
 """
 function handle_boundary(
     particle::SingleParticle,
-    normal::SVector{3},
+    side::BoundarySide,
+    side_idx::UInt32,
     species::SpeciesConfig,
     boundary::SymmetricBoundary,
     config::SimulationConfig
 ) :: SingleParticle
     # `SingleParticle` is immutable, since this change will not propagate into the `ParticleData` collection 
-    particle = @set particle.pos -= 2*(particle.pos ⋅ normal)*normal
+    particle = @set particle.pos -= 2*(particle.pos ⋅ side.normal)*side.normal
     return particle
 end
 
 function handle_boundary(
     particle::SingleParticle,
-    normal::SVector{3},
+    side::BoundarySide,
+    side_idx::UInt32,
     species::SpeciesConfig,
     boundary::ReflectiveBoundary,
     config::SimulationConfig
 ) :: SingleParticle
-    post_particle = @set particle.vel -= 2*normal*dot(normal, particle.vel)
+    post_particle = @set particle.vel -= 2*side.normal*dot(side.normal, particle.vel)
     return post_particle
 end
 
 
 function handle_boundary(
     particle::SingleParticle,
-    normal::SVector{3},
+    side::BoundarySide,
+    side_idx::UInt32,
     species::SpeciesConfig,
     boundary::DiffuseBoundary,
     config::SimulationConfig
@@ -50,11 +54,17 @@ function handle_boundary(
     vmag2 = particle.vel[1]^2 + particle.vel[2]^2 + particle.vel[3]^2
     new_local_vel = sample_wall_distribution(vmag2, boundary.temperature, boundary.accommodation, species.mass)
     # TODO: Produce perpendicular vector pair according to normal (critical!)
-    new_vel = new_local_vel[1]*[0, 1, 0] + new_local_vel[2]*[0, 0, 1] + new_local_vel[3]*normal
+    new_vel = new_local_vel[1]*[0, 1, 0] + new_local_vel[2]*[0, 0, 1] + new_local_vel[3]*side.normal
     new_vel += boundary.velocity
+    particle = @set particle.vel = new_vel
 
     # Update the variance reduction weight if applicable
     if haskey(particle.features, :vr_weight)
+        if particle.features.last_collided_side == 0
+            @atomic side.vrbgk_incident_sum += particle.features.vr_weight
+            @atomic side.vrbgk_incident_count += UInt32(1)
+        end
+        particle = @set particle.features.last_collided_side = side_idx
         # Does not contain number density, since this is added at the end of the advection step.
         particle = @set particle.features.vr_weight =
             sqrt(boundary.temperature / config.vrbgk.ref_temperature) *
@@ -62,7 +72,7 @@ function handle_boundary(
             maxwellian(        boundary.temperature, boundary.velocity, species.mass, new_vel)
     end
 
-    return @set particle.vel = new_vel
+    return particle
 end
 
 

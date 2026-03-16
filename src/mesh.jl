@@ -9,16 +9,26 @@ using StaticArrays
 using HDF5
 using Printf
 using LightSumTypes
+using Atomix
+
 
 Vertex = SVector{3, Float64}
+
+mutable struct BoundarySide
+    bc_index :: Int16
+    normal :: SVector{3, Float64}
+    # TODO: Only include this if VRBGK is enabled.
+    @atomic vrbgk_incident_sum :: Float64
+    @atomic vrbgk_incident_count :: UInt32
+end
 
 struct Hexahedron
     vertices :: SVector{8, Vertex}
     barycenter :: SVector{3, Float64}
-    # Boundary conditions
-    bcs :: SVector{6, Int16}
+    # Boundary conditions (zero if none)
+    bc_side_idx :: SVector{6, UInt32}
     # Neighbour cell for side.
-    neighbours :: SVector{6, UInt}
+    neighbours :: SVector{6, UInt32}
     volume :: Float64
 end
 
@@ -27,20 +37,22 @@ end
 struct Mesh
     cells :: Vector{Cell}
     bc_names :: Vector{String}
+    bc_sides :: Vector{BoundarySide}
 end
 
 
-function get_sides(cell :: Hexahedron)
+function get_sides(vertices :: AbstractVector{SVector{3, Float64}})
     SVector(
-        SVector(cell.vertices[1], cell.vertices[4], cell.vertices[3], cell.vertices[2]),
-        SVector(cell.vertices[1], cell.vertices[2], cell.vertices[6], cell.vertices[5]),
-        SVector(cell.vertices[2], cell.vertices[3], cell.vertices[7], cell.vertices[6]),
-        SVector(cell.vertices[3], cell.vertices[4], cell.vertices[8], cell.vertices[7]),
-        SVector(cell.vertices[1], cell.vertices[5], cell.vertices[8], cell.vertices[4]),
-        SVector(cell.vertices[5], cell.vertices[6], cell.vertices[7], cell.vertices[8])
+        SVector(vertices[1], vertices[4], vertices[3], vertices[2]),
+        SVector(vertices[1], vertices[2], vertices[6], vertices[5]),
+        SVector(vertices[2], vertices[3], vertices[7], vertices[6]),
+        SVector(vertices[3], vertices[4], vertices[8], vertices[7]),
+        SVector(vertices[1], vertices[5], vertices[8], vertices[4]),
+        SVector(vertices[5], vertices[6], vertices[7], vertices[8])
     )
 end
 
+get_sides(cell :: Hexahedron) = get_sides(cell.vertices)
 get_sides(cell :: Cell) = get_sides(variant(cell))
 
 
@@ -186,6 +198,7 @@ function mesh_from_h5(path)
     
     # Initialize mesh and cells
     cells = Cell[]
+    bc_sides = BoundarySide[]
     
     # Process each element
     for elem_id in 1:nelems
@@ -216,11 +229,20 @@ function mesh_from_h5(path)
             barycenter = barycenters[:, elem_id]
 
             # Read boundary conditions
-            bcs = Vector{Int16}(undef, last_side - offset_side)
-            neighbours = Vector{UInt}(undef, last_side - offset_side)
+            bcs = Vector{UInt32}(undef, last_side - offset_side)
+            neighbours = Vector{UInt32}(undef, last_side - offset_side)
+            sides = get_sides(vertices)
             for i in 1:(last_side - offset_side)
                 side_idx = offset_side + i
-                bcs[i] = side_info[5, side_idx]
+                if side_info[5, side_idx] == 0
+                    bcs[i] = 0
+                else
+                    push!(
+                        bc_sides,
+                        BoundarySide(side_info[5, side_idx], side_normal(sides[i]), 0.0, 0)
+                    )
+                    bcs[i] = length(bc_sides)
+                end
                 neighbours[i] = side_info[3, side_idx]
             end
             
@@ -241,5 +263,5 @@ function mesh_from_h5(path)
     end
 
     # Return mesh
-    return Mesh(cells, bc_names)
+    return Mesh(cells, bc_names, bc_sides)
 end

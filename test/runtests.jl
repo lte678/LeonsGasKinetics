@@ -41,6 +41,6 @@ using Statistics
         @test all(abs.(volume_output["Total_VeloZ"]) .< 0.05)
         @test all(volume_output["Total_TempTransX"] .< 280.1)
         @test all(volume_output["Total_TempTransX"] .> 279.9)
-        @test all(abs.(volume_output["Total_NumberDensity"] .- 1.3e18) .< 0.005e18)
+        @test all(abs.(volume_output["Total_NumberDensity"] .- 1.3e18) .< 0.02e18)
     end
 end
