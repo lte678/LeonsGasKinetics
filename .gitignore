@@ -30,5 +30,8 @@ JuliaLocalPreferences.toml
 # Tools
 .vscode/
 .aider*
+
+# Simulation artifacts
+examples/**/output
 *.h5
 *.vtu

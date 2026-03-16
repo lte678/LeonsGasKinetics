@@ -4,9 +4,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mutable struct SimulationState
+mutable struct SimulationState{Features}
     # Particle information
-    particles :: ParticleData
+    particles :: ParticleData{Features}
     # Save the number of particles per cell
     cell_part_count :: Vector{UInt32}
     # Current simulation time

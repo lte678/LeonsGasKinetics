@@ -85,7 +85,21 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
         
         # Insert particles into the simulation
         for i in 1:num_macro_particles
-            insert_particle!(sim.particles, positions[i], velocities[i], cell_i)
+            feature_fields = []
+            if sim_config.vrbgk.enabled
+                # Ratio of probabilities. Used for importance sampling. See VRBGK papers.
+                vr_weight = (sim_config.vrbgk.ref_density .* maxwellian(sim_config.vrbgk.ref_temperature, [0.0, 0.0, 0.0], mass, velocities[i])) ./
+                            (                     density .* maxwellian(temperature                     , bulk_velocity  , mass, velocities[i]))
+                push!(feature_fields, :vr_weight => vr_weight)
+            end
+
+            p = SingleParticle(
+                positions[i],
+                velocities[i],
+                cell_i,
+                (; feature_fields...)  # Convert to named tuple
+            )
+            insert_particle!(sim.particles, p)
             sim.cell_part_count[cell_i] += 1
         end
     end

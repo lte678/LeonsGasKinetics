@@ -81,7 +81,7 @@ function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, b
         else
             bc = boundaries[bc_indx]
             n = side_normal(side)
-            p = handle_boundary(p, n, config.species[1], bc)
+            p = handle_boundary(p, n, config.species[1], bc, config)
         end
  
         # Handling a single collision is sufficient. Break.

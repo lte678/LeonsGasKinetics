@@ -14,14 +14,19 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
     n_cells = length(mesh.cells)
 
     # Avoid reallocation inside loop
-    cell_moments = [MomentAccumulator() for _ in 1:n_cells]
+    if config.vrbgk.enabled
+        cell_moments = [VRBGKMomentAccumulator() for _ in 1:n_cells]
+    else
+        cell_moments = [MomentAccumulator() for _ in 1:n_cells]
+    end
     cell_accumulators = [DefaultDict{Symbol, Averager}(() -> Averager()) for _ in 1:n_cells]
 
     particle_reordering = zeros(Int, length(state.particles))
     _, t = Base.Sort.make_scratch(nothing, eltype(particle_reordering), length(particle_reordering))
-    sorted_particles = ParticleData(length(state.particles))
+    particle_data_scratch = ParticleData(length(state.particles); vrbgk_enabled=config.vrbgk.enabled)
 
     iteration = 1
+    reporter = ProgressReporter(config.report_interval)
     while state.time < config.t_end
         # Gracefully handle the final timestep. Make sure we dont make a zero length step afterwards.
         if state.time + dt > config.t_end
@@ -40,14 +45,12 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         # for the moment calculation for example.
         timed_region(state.perf_counters, :sorting) do
             sortperm!(particle_reordering, state.particles.cell; scratch=t)
-            sorted_particles.pos .= state.particles.pos[particle_reordering]
-            sorted_particles.vel .= state.particles.vel[particle_reordering]
-            sorted_particles.cell .= state.particles.cell[particle_reordering]
+            reorder!(state.particles, particle_reordering; scratch=particle_data_scratch)
         end
 
         # Calculate moments
         timed_region(state.perf_counters, :accumulate_moments) do
-            accumulate_moments!(cell_moments, sorted_particles)
+            accumulate_moments!(cell_moments, state.particles)
         end
     
         # Perform the collision step
@@ -55,11 +58,10 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
             particle_start_idx = 1
             for i in 1:n_cells
                 flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
-                particle_x = @view sorted_particles.pos[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
-                particle_v = @view sorted_particles.vel[particle_start_idx:particle_start_idx + state.cell_part_count[i] - 1]
+                cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cell_part_count[i] - 1)
 
                 # Perform collision on the current cell's particles.
-                config.collision_operator(particle_x, particle_v, cell_accumulators[i], config, flow_vars, dt)
+                config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt)
                 
                 particle_start_idx += state.cell_part_count[i]
             end
@@ -70,28 +72,24 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
             if state.time - dt < sampling_start_time && !config.silent
                 @printf "Starting sampling.\n"
             end
-            for i = 1:length(cell_moments)
-                add_sample!(cell_accumulators[i][:c_x] , cell_moments[i].c_i[1]  / cell_moments[i].count)
-                add_sample!(cell_accumulators[i][:c_y] , cell_moments[i].c_i[2]  / cell_moments[i].count)
-                add_sample!(cell_accumulators[i][:c_z] , cell_moments[i].c_i[3]  / cell_moments[i].count)
-                add_sample!(cell_accumulators[i][:c_xx], cell_moments[i].c_ii[1] / cell_moments[i].count)
-                add_sample!(cell_accumulators[i][:c_yy], cell_moments[i].c_ii[2] / cell_moments[i].count)
-                add_sample!(cell_accumulators[i][:c_zz], cell_moments[i].c_ii[3] / cell_moments[i].count)
-                add_sample!(cell_accumulators[i][:count], cell_moments[i].count)
+            for i in 1:n_cells
+                flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
+                add_sample!(cell_accumulators[i][:u_x] , flow_vars.velocity[1])
+                add_sample!(cell_accumulators[i][:u_y] , flow_vars.velocity[2])
+                add_sample!(cell_accumulators[i][:u_z] , flow_vars.velocity[3])
+                add_sample!(cell_accumulators[i][:T_x], flow_vars.temperature[1])
+                add_sample!(cell_accumulators[i][:T_y], flow_vars.temperature[2])
+                add_sample!(cell_accumulators[i][:T_z], flow_vars.temperature[3])
+                add_sample!(cell_accumulators[i][:density], flow_vars.density)
+                add_sample!(cell_accumulators[i][:sim_part_count], flow_vars.sim_particle_count)
             end
         end
 
         # Clear moments
         clear_moments!(cell_moments)
-        
-        # Swap sorting array
-        state.particles.pos .= sorted_particles.pos
-        state.particles.vel .= sorted_particles.vel
-        state.particles.cell .= sorted_particles.cell
 
-        if iteration % 1000 == 0 && !config.silent
-            @printf "[Iteration = %6d]\n" iteration
-        end
+        # Print report every config.report_interval seconds.
+        config.silent || maybe_report!(reporter, iteration, state.time)
 
         iteration += 1
     end
@@ -118,8 +116,8 @@ function run_simulation_from_config(config_path::String; enable_asserts=false)
     
     # Initialize simulation
     sim = SimulationState(
-        ParticleData(),
-        [],
+        ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled),
+        Vector{UInt32}(),
         0.0,
         PerformanceCounters()
     )
@@ -131,4 +129,20 @@ function run_simulation_from_config(config_path::String; enable_asserts=false)
     volume_output = postprocess(volume_samples, sim_config, mesh)
     
     return volume_output, sim_config, mesh
+end
+
+
+mutable struct ProgressReporter
+    last_report_time::Float64
+    report_interval::Float64
+end
+
+ProgressReporter(interval::Float64) = ProgressReporter(time(), interval)
+
+function maybe_report!(reporter::ProgressReporter, iteration::Int, sim_time::Float64)
+    now = time()
+    if now - reporter.last_report_time >= reporter.report_interval
+        @printf "[Iteration = %6d] t = %8.3fμs\n" iteration sim_time * 1e6
+        reporter.last_report_time = now
+    end
 end

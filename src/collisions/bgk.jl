@@ -12,8 +12,9 @@ function swap!(array, idx1, idx2)
 end
 
 
-function bgk_collision!(particle_x, particle_v, samples, config::SimulationConfig, flow_vars::FlowProperties, dt)
-    if length(particle_x) < 2
+function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::FlowProperties, dt)
+    n_part = length(pdata)
+    if n_part < 2
         add_sample!(samples[:relaxation_rate], 0.0)
         return
     end
@@ -22,29 +23,30 @@ function bgk_collision!(particle_x, particle_v, samples, config::SimulationConfi
         error("\"BGK\" collision operator only supports single species.")
     end
     spec = config.species[1]
-    n_part = length(particle_x)
-    @assert length(particle_v) == n_part
 
     # Calculate the relax probability
     dyn_visc = dynamic_viscosity(spec)
     relax_freq = flow_vars.density*BOLTZMANN*spec.T_ref^(spec.omega + 0.5)*flow_vars.mean_temperature^(-spec.omega + 0.5) / dyn_visc
     relax_probability = 1.0 - exp(-dt*relax_freq)
     
-    # Select particles to be relaxed and move them to the beginning of the particle array.
-    # After this, 1:n_relaxed should be relaxed and n_relaxed+1: should be left alone.    
+    # Select particles to be relaxed
     n_relaxed = 0
     for i = 1:n_part
         if rand() < relax_probability
-            swap!(particle_x, n_relaxed + 1, i)
-            swap!(particle_v, n_relaxed + 1, i)
+            # Relax the particle
+            # swap!(pdata, n_relaxed + 1, i)
+            particle = pdata[i]
+            particle = @set particle.vel = sample_maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
+
+            if config.vrbgk.enabled
+                particle = @set particle.features.vr_weight = 
+                    (config.vrbgk.ref_density .* maxwellian(config.vrbgk.ref_temperature, [0.0, 0.0, 0.0]   , spec.mass, particle.vel)) ./
+                    (       flow_vars.density .* maxwellian(flow_vars.mean_temperature  , flow_vars.velocity, spec.mass, particle.vel))
+            end
+            # Update particle
+            pdata[i] = particle
             n_relaxed += 1
         end
-    end
-
-    # Do relaxation
-    if n_relaxed > 0
-        sample_v = @view particle_v[1:n_relaxed - 1]
-        sample_maxwellian!(sample_v, flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
     end
 
     # Update cell averages

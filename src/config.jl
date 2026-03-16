@@ -4,6 +4,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+struct SymmetricBoundary end
+struct ReflectiveBoundary end
+struct DiffuseBoundary
+    accommodation :: Float64
+    temperature :: Float64
+    velocity :: SVector{3, Float64}
+end
+
+@sumtype Boundary(SymmetricBoundary, ReflectiveBoundary, DiffuseBoundary)
+
+
+struct VRBGKConfig
+    enabled :: Bool
+    ref_temperature :: Float64
+    ref_density :: Float64
+end
+
+
 struct SimulationConfig{T1<:Function}
     # Species definition
     species :: Vector{SpeciesConfig}
@@ -19,6 +37,8 @@ struct SimulationConfig{T1<:Function}
     dt :: Float64
     # Sampling fraction
     sample_fraction :: Float64
+    # Reporting inveral for console output
+    report_interval :: Float64
     # Project name
     project_name :: String
     # Meshfile
@@ -27,10 +47,12 @@ struct SimulationConfig{T1<:Function}
     silent :: Bool
     # Whether to enable asserts or not
     asserts :: Bool
+    # Settings for VRBGK
+    vrbgk :: VRBGKConfig
 end
 
 
-function sim_config_from_config(config, config_dir, asserts, bc_order)
+function sim_config_from_config(config, config_dir, asserts, bc_order) :: SimulationConfig
     species = convert(Dict{String, Dict{String, Float64}}, config["species"])
     if length(species) > 1
         error("Multi-species flow is not supported yet.")
@@ -45,6 +67,16 @@ function sim_config_from_config(config, config_dir, asserts, bc_order)
         push!(boundaries, Boundary(boundary_from_config(config["boundary"][bc_idx])))
     end
 
+    if haskey(config, "denoise") && config["denoise"]["enabled"]
+        vrbgk_config = VRBGKConfig(
+            true,
+            config["denoise"]["T_ref"],
+            config["denoise"]["n_ref"],
+        )
+    else
+        vrbgk_config = VRBGKConfig(false, 0.0, 0.0)
+    end
+
     return SimulationConfig(
         species,
         boundaries,
@@ -53,10 +85,12 @@ function sim_config_from_config(config, config_dir, asserts, bc_order)
         config["timestep"]["tend"],
         config["timestep"]["dt"],
         get(config["output"], "sample_fraction", 1.0),
+        get(config["output"], "report_interval", 5.0),
         config["name"],
         joinpath(config_dir, config["meshfile"]),
         false,
         asserts,
+        vrbgk_config,
     )
 end
 
@@ -82,7 +116,7 @@ function coll_op_from_config(operator_name)
     if operator_name == "bgk"
         return bgk_collision!
     elseif operator_name == "none"
-        return (part_x, part_v, samples, config, flow_variables, dt) -> ()
+        return (pdata, samples, config, flow_variables, dt) -> ()
     else
         error("Unknown DSMC collision operator \"$operator_name\"")
     end

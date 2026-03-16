@@ -9,7 +9,7 @@ Example files are provided in the `examples` folder.
 The mesh .h5 files are generated using the [HOPR preprocessor](https://github.com/hopr-framework/hopr).
 
 ```
-julia --project=. src/LeonsGasKinetics.jl examples/couette.toml output_path_of_choice
+julia --project=. src/main.jl examples/couette.toml output_path_of_choice
 ```
 Visualization uses the `piclas2vtk` utility from the [PICLas project](https://github.com/piclas-framework/piclas).
 ```

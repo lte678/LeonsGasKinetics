@@ -18,13 +18,13 @@ using DataStructures
 
 include("constants.jl")
 include("averaging.jl")
-include("sampling/maxwellian.jl")
+include("distributions/maxwellian.jl")
 include("particle_data.jl")
 include("performance_counters.jl")
 include("simulation_state.jl")
 include("mesh.jl")
-include("boundary.jl")
 include("config.jl")
+include("boundary.jl")
 include("initialization.jl")
 include("tracking.jl")
 include("moments.jl")
@@ -39,10 +39,22 @@ include("postprocessing/hdf5_output.jl")
 
 # To ease getting performance metrics.
 function precompile(mesh, sim_config)
-    part_counts = zeros(length(mesh.cells))
+    # Prepare particle data.
+    part_counts = zeros(UInt32, length(mesh.cells))
     part_counts[1] = 1
+    part_data = ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled)
+    if sim_config.vrbgk.enabled
+        feature_data = (; :vr_weight => 1.0)
+    else
+        feature_data = (;)
+    end
+    insert_particle!(
+        part_data,
+        SingleParticle(mesh.cells[1].barycenter, [1000.0, 1000.0, 1000.0], 1, feature_data)
+    ) 
+    
     sim = SimulationState(
-        ParticleData([mesh.cells[1].barycenter], [[1000.0, 1000.0, 1000.0]], [1]),
+        part_data,
         part_counts,
         0.0,
         PerformanceCounters()
@@ -100,14 +112,16 @@ function run(args)
 
     # Prepare the simulation structure
     sim = SimulationState(
-        ParticleData(),
-        [],
+        ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled),
+        Vector{UInt32}(),
         0.0,  # Start time
         PerformanceCounters()
     )
     
     # Create and insert the initial particles
-    initialize_simulation!(sim, mesh, sim_config, config["initialization"])
+    timed_region(sim.perf_counters, :initialization) do
+        initialize_simulation!(sim, mesh, sim_config, config["initialization"])
+    end
 
     # Output simulation stats
     print_particle_data_info(sim.particles)
@@ -148,9 +162,5 @@ function run(args)
 end
 
 export run_simulation!, run_simulation_from_config
-
-if abspath(PROGRAM_FILE) == @__FILE__
-    (@main)(args) = run(args)
-end
 
 end
