@@ -36,10 +36,10 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
             # Relax the particle
             # swap!(pdata, n_relaxed + 1, i)
             particle = pdata[i]
-            @set particle.vel = sample_maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
+            particle = @set particle.vel = sample_maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
 
             if config.vrbgk.enabled
-                @set particle.features.vr_weight = 
+                particle = @set particle.features.vr_weight = 
                     (config.vrbgk.ref_density .* maxwellian(config.vrbgk.ref_temperature, [0.0, 0.0, 0.0]   , spec.mass, particle.vel)) ./
                     (       flow_vars.density .* maxwellian(flow_vars.mean_temperature  , flow_vars.velocity, spec.mass, particle.vel))
             end
