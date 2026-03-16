@@ -3,13 +3,14 @@
 
 This is a little Julia-based DSMC gas kinetics solver.
 It supports the BGK collision model and 3D geometries.
+A rather uncommon feature is a variance reduction scheme called "VRBGK" that allows for low-noise, low-velocity BGK simulations. 
 
 ## Usage
 Example files are provided in the `examples` folder.
 The mesh .h5 files are generated using the [HOPR preprocessor](https://github.com/hopr-framework/hopr).
 
 ```
-julia --project=. src/main.jl examples/couette.toml output_path_of_choice
+julia --project=. src/main.jl examples/couette/couette.toml output_path_of_choice
 ```
 Visualization uses the `piclas2vtk` utility from the [PICLas project](https://github.com/piclas-framework/piclas).
 ```
@@ -24,9 +25,10 @@ Wall velocity = +-100m/s, Kn=1.0
 
 # References
 - https://github.com/piclas-framework/piclas
-- C.D. Munz et al, _Coupled Particle-In-Cell and Direct Simulation Monte Carlo method for simulating reactive plasma flows_. 2014
-- G.A. Bird, _Molecular Gas Dynamics and the Direct Simulation of Gas Flows_. 1994
-- M. Pfeiffer, _Particle-based fluid dynamics: Comparison of different Bhatnagar-Gross-Krook models and the direct simulation Monte Carlo method for hypersonic flows_. 2018
+- C.D. Munz et al, "_Coupled Particle-In-Cell and Direct Simulation Monte Carlo method for simulating reactive plasma flows_". 2014
+- G.A. Bird, "_Molecular Gas Dynamics and the Direct Simulation of Gas Flows_". 1994
+- M. Pfeiffer, "_Particle-based fluid dynamics: Comparison of different Bhatnagar-Gross-Krook models and the direct simulation Monte Carlo method for hypersonic flows_". 2018
+- C. D. Landon and N. G. Hadjiconstantinou, "_Variance-Reduced Direct Simulation Monte Carlo with the Bhatnagar-Gross-Krook Collision Operator_". 2011
 
 # License
 Leon's Gas Kinetics  Copyright (C) 2025  Leon Teichroeb  
