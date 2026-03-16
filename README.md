@@ -1,4 +1,6 @@
 # Leon's Gas Kinetics
+[![pipeline status](https://git.leons-tech.org/lte678/LeonsGasKinetics/badges/master/pipeline.svg)](https://git.leons-tech.org/lte678/LeonsGasKinetics/-/commits/master)  
+
 This is a little Julia-based DSMC gas kinetics solver.
 It supports the BGK collision model and 3D geometries.
 

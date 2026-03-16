@@ -5,6 +5,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using StaticArrays
+using KernelAbstractions
 
 
 struct SpeciesConfig
@@ -97,7 +98,6 @@ function Base.resize!(pdata::ParticleData, n_particles::Integer)
     return pdata
 end
 
-Base.length(particles::ParticleData) = length(particles.pos)
 
 function Base.getindex(data::ParticleData, i)
     feature_data = map(v -> v[i], data.features)
@@ -157,6 +157,17 @@ function reorder!(pdata::ParticleData, perm::AbstractVector{<:Integer}; scratch:
     return pdata
 end
 
+
+Base.length(particles::ParticleData) = length(particles.pos)
+
+function Base.iterate(pdata::ParticleData, i=1)
+    i > length(pdata) && return nothing
+    return (pdata[i], i + 1)
+end
+
+Base.keys(pdata::ParticleData) = keys(pdata.pos)
+
+KernelAbstractions.get_backend(pdata::ParticleData) = get_backend(pdata.pos)
 
 """
 Insert a particle into the provided `ParticleData` object.
