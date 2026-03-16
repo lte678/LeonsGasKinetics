@@ -4,6 +4,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import AcceleratedKernels as AK
+
+
 """
 Takes the initial_state and propagates it in time until the stopping condition is reached.
 """
@@ -21,8 +24,8 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
     end
     cell_accumulators = [DefaultDict{Symbol, Averager}(() -> Averager()) for _ in 1:n_cells]
 
-    particle_reordering = zeros(Int, length(state.particles))
-    _, t = Base.Sort.make_scratch(nothing, eltype(particle_reordering), length(particle_reordering))
+    particle_reordering = zeros(UInt64, length(state.particles))
+    t = similar(state.particles.cell)
     particle_data_scratch = ParticleData(length(state.particles); vrbgk_enabled=config.vrbgk.enabled)
 
     iteration = 1
@@ -44,7 +47,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         # Re-sort the particles. This is to make the BGK collision routine much simpler and to improve cache locality
         # for the moment calculation for example.
         timed_region(state.perf_counters, :sorting) do
-            sortperm!(particle_reordering, state.particles.cell; scratch=t)
+            AK.sortperm!(particle_reordering, state.particles.cell, temp=t)
             reorder!(state.particles, particle_reordering; scratch=particle_data_scratch)
         end
 
