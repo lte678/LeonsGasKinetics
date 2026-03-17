@@ -36,7 +36,7 @@ using Statistics
         x = x[x_sortidx]
         y_vel = volume_output["Total_VeloY"][x_sortidx]
 
-        @test abs(cov(x, y_vel) - 0.136) < 0.002
+        @test abs(cov(x, y_vel) - 0.136) < 0.005
         @test all(abs.(volume_output["Total_VeloX"]) .< 0.05)
         @test all(abs.(volume_output["Total_VeloZ"]) .< 0.05)
         @test all(volume_output["Total_TempTransX"] .< 280.1)

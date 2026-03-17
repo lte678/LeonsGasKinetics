@@ -74,8 +74,8 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
     if haskey(config, "denoise") && config["denoise"]["enabled"]
         vrbgk_config = VRBGKConfig(
             true,
-            config["denoise"]["T_ref"],
-            config["denoise"]["n_ref"],
+            Float64(config["denoise"]["T_ref"]),
+            Float64(config["denoise"]["n_ref"]),
         )
     else
         vrbgk_config = VRBGKConfig(false, 0.0, 0.0)
@@ -85,9 +85,9 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         species,
         boundaries,
         coll_op_from_config(config["dsmc"]["collision_operator"]),
-        config["dsmc"]["mpf"],
-        config["timestep"]["tend"],
-        config["timestep"]["dt"],
+        Float64(config["dsmc"]["mpf"]),
+        Float64(config["timestep"]["tend"]),
+        Float64(config["timestep"]["dt"]),
         get(config["output"], "sample_fraction", 1.0),
         UInt32(get(config["output"], "output_interval", 0)),
         get(config["output"], "report_interval", 5.0),
