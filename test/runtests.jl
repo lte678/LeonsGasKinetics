@@ -7,7 +7,7 @@ using Statistics
         # Test shear flow between moving plates
         BASE_FOLDER = dirname(dirname(pathof(LeonsGasKinetics)))
         config_path = joinpath(BASE_FOLDER, "test", "configs", "couette.toml")
-        volume_output, sim_config, mesh = run_simulation_from_config(config_path; enable_asserts=true)
+        volume_output, sim_config, mesh = run_simulation_from_config(config_path, "output"; enable_asserts=true)
 
         # Extract velocity profile along y-axis (assuming 2D or 3D with walls at y=0 and y=H)
         x = [2*(cell.barycenter[1] - 0.5) for cell in mesh.cells]
@@ -28,7 +28,7 @@ using Statistics
         # Test shear flow between moving plates
         BASE_FOLDER = dirname(dirname(pathof(LeonsGasKinetics)))
         config_path = joinpath(BASE_FOLDER, "test", "configs", "couette_vrbgk.toml")
-        volume_output, sim_config, mesh = run_simulation_from_config(config_path; enable_asserts=true)
+        volume_output, sim_config, mesh = run_simulation_from_config(config_path, "output"; enable_asserts=true)
 
         # Extract velocity profile along y-axis (assuming 2D or 3D with walls at y=0 and y=H)
         x = [2*(cell.barycenter[1] - 0.5) for cell in mesh.cells]

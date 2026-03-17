@@ -102,7 +102,11 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         clear_moments!(cell_moments)
 
         # Print report every config.report_interval seconds.
-        config.silent || maybe_report!(reporter, iteration, state.time)
+        if !config.silent
+            maybe_report(reporter) do
+                @printf "[Iteration = %6d] t = %8.3fμs\n" iteration state.time * 1e6
+            end
+        end
 
         iteration += 1
     end
@@ -114,7 +118,7 @@ end
 Load configuration, run simulation, and return postprocessed volume data without 
 writing HDF5 output.
 """
-function run_simulation_from_config(config_path::String; enable_asserts=false)
+function run_simulation_from_config(config_path::String, output_dir::String; enable_asserts=false)
     @assert isfile(config_path) "Config file not found: $config_path"
     
     config = TOML.parsefile(config_path)
@@ -125,7 +129,7 @@ function run_simulation_from_config(config_path::String; enable_asserts=false)
     mesh = mesh_from_h5(meshfile_path)
     
     # Build simulation configuration
-    sim_config = sim_config_from_config(config, config_dir, enable_asserts, mesh.bc_names)
+    sim_config = sim_config_from_config(config, config_dir, output_dir, enable_asserts, mesh.bc_names)
     
     # Initialize simulation
     sim = SimulationState(
@@ -152,10 +156,10 @@ end
 
 ProgressReporter(interval::Float64) = ProgressReporter(time(), interval)
 
-function maybe_report!(reporter::ProgressReporter, iteration::Int, sim_time::Float64)
+function maybe_report(f, reporter::ProgressReporter)
     now = time()
     if now - reporter.last_report_time >= reporter.report_interval
-        @printf "[Iteration = %6d] t = %8.3fμs\n" iteration sim_time * 1e6
+        f()
         reporter.last_report_time = now
     end
 end

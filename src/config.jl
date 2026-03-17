@@ -89,7 +89,7 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         config["timestep"]["tend"],
         config["timestep"]["dt"],
         get(config["output"], "sample_fraction", 1.0),
-        UInt32(get(config["output"], "output_interval", 1)),
+        UInt32(get(config["output"], "output_interval", 0)),
         get(config["output"], "report_interval", 5.0),
         config["name"],
         joinpath(config_dir, config["meshfile"]),
