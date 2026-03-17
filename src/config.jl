@@ -64,9 +64,9 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
     species = map(species_from_config, keys(species), values(species))
     boundaries = Vector{Boundary}()
     for bc in bc_order
-        bc_idx = findfirst(b -> b["identifier"] == bc, config["boundary"])
+        bc_idx = findfirst(b -> lowercase(b["identifier"]) == bc, config["boundary"])
         if bc_idx === nothing
-            error("BC $bc missing from simulation config!")
+            error("BC '$bc' missing from simulation config!")
         end
         push!(boundaries, Boundary(boundary_from_config(config["boundary"][bc_idx])))
     end
@@ -110,7 +110,7 @@ function boundary_from_config(config)
         return DiffuseBoundary(
             config["accommodation"],
             config["temperature"],
-            config["velocity"],
+            get(config, "velocity", SVector(0.0, 0.0, 0.0)),
         )
     else
         error("Unknown boundary type \"$type\"")

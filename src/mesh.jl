@@ -178,7 +178,10 @@ end
 
 cell_volume(cell :: Cell) = cell_volume(variant(cell))
 
-
+"""
+Imports meshes of the HOPR format.
+https://hopr.readthedocs.io/en/latest/userguide/meshformat.html
+"""
 function mesh_from_h5(path)
     # Open HDF5 file
     h5file = h5open(path, "r")
@@ -192,7 +195,8 @@ function mesh_from_h5(path)
 
     # Read data arrays
     elem_info = read(h5file, "ElemInfo")
-    barycenters = read(h5file, "ElemBarycenters")
+    # This is no longer available in PyHOPE
+    # barycenters = read(h5file, "ElemBarycenters")
     node_coords = read(h5file, "NodeCoords")
     side_info = read(h5file, "SideInfo")
     
@@ -224,9 +228,8 @@ function mesh_from_h5(path)
             vertices[7] = node_coords[:, offset_node + 8]
             vertices[8] = node_coords[:, offset_node + 7]
 
-            
             # Calculate barycenter
-            barycenter = barycenters[:, elem_id]
+            barycenter = sum(vertices) ./ 8
 
             # Read boundary conditions
             bcs = Vector{UInt32}(undef, last_side - offset_side)
@@ -254,7 +257,7 @@ function mesh_from_h5(path)
         end
     end
     
-    bc_names = read(h5file, "BCNames")[:, 1]
+    bc_names = map(lowercase, map(strip, read(h5file, "BCNames")[:, 1]))
 
     close(h5file)
 
