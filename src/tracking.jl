@@ -6,63 +6,24 @@
 
 using StaticArrays
 
-# Tests whether a ray intersects with a planar face.
-function ray_intersects_rect(origin::SVector{3, Float64}, dir::SVector{3, Float64}, rect::SVector{4, SVector{3, Float64}})
-    # Split quad into two triangles
-    tri1 = @SVector [rect[1], rect[2], rect[3]]
-    tri2 = @SVector [rect[1], rect[3], rect[4]]
+function find_exit_face(origin::SVector{3,T}, dir::SVector{3,T}, normals::SVector{6,SVector{3,T}}, vertices::SVector{6,SVector{3,T}}) where T
+    hit_distance = @MVector zeros(6)
 
-    # Test intersection with first triangle
-    hit, intersection = ray_intersects_tri(origin, dir, tri1)
-    if hit
-        return true, intersection
-    end
-
-    # Test intersection with second triangle
-    hit, intersection = ray_intersects_tri(origin, dir, tri2)
-    return hit, intersection
-end
-
-
-# Tests whether a ray intersects with a triangle.
-function ray_intersects_tri(origin::SVector{3}, dir::SVector{3}, tri::SVector{3, Vertex})
-    e1 = tri[2] - tri[1]
-    e2 = tri[3] - tri[1]
-
-    ray_cross_e2 = cross(dir, e2)
-    det = dot(e1, ray_cross_e2)
-
-    # Check if ray is parallel to triangle
-    #if abs(det) < eps(Float64)
-    # Check that we are colliding with the front-face
-    if det > -eps(Float64)
-        return false, @SVector [0.0, 0.0, 0.0]
+    for i in 1:6
+        # n should point INWARD from the cell
+        n = normals[i]
+        p0 = vertices[i]
+        
+        denom = dot(n, dir)
+        
+        # Only hit faces the particle is moving towards (outward normal)
+        # The result of this may be negative if we are slightly past the face. We should still collide with
+        # such faces, since it means we missed the collision at some other point, maybe due to rounding errors.
+        # On the way back, the direction of the normal will prevent it from hitting the face as it passes back
+        # back through.
+        hit_distance[i] = ifelse(denom < 0.0, dot(p0 - origin, n) / denom, Inf)
     end
     
-    inv_det = 1.0 / det
-    s = origin - tri[1]
-    u = inv_det * dot(s, ray_cross_e2)
-    
-    if u < -COLLISION_TOL || u > 1.0 + COLLISION_TOL
-        return false, @SVector [0.0, 0.0, 0.0]
-    end
-
-    s_cross_e1 = cross(s, e1)
-    v = inv_det * dot(dir, s_cross_e1)
-
-    if v < -COLLISION_TOL || u + v > 1.0 + COLLISION_TOL
-        return false, @SVector [0.0, 0.0, 0.0]
-    end
-
-    t = inv_det * dot(e2, s_cross_e1)
-
-    # This ensures that particles only hit what is in front of them.
-    # We weaken this restriction slightly so that they only need to be moving in the direction of the boundary.
-    #if t > eps(Float64)
-    #    intersection_point = origin + dir * t
-    #    return intersection_point
-    #else
-    #    return nothing
-    #end
-    return true, origin + dir * t
+    hit_index = argmin(hit_distance)
+    return hit_index, hit_distance[hit_index]
 end

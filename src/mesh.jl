@@ -24,6 +24,9 @@ end
 
 struct Hexahedron
     vertices :: SVector{8, Vertex}
+    normals :: SVector{6, SVector{3, Float64}}
+    # Contains one vertex per face. A arbitrary vertex on the face 
+    face_origins :: SVector{6, SVector{3, Float64}}
     barycenter :: SVector{3, Float64}
     # Boundary conditions (zero if none)
     bc_side_idx :: SVector{6, UInt32}
@@ -248,8 +251,10 @@ function mesh_from_h5(path)
                 end
                 neighbours[i] = side_info[3, side_idx]
             end
+            normals = map(side_normal, sides)
+            face_origins = map(v -> v[1], sides)
             
-            cell = Hexahedron(vertices, barycenter, bcs, neighbours, 0.0)
+            cell = Hexahedron(vertices, normals, face_origins, barycenter, bcs, neighbours, 0.0)
             cell = @set cell.volume = cell_volume(cell)
             push!(cells, Cell(cell))
         else

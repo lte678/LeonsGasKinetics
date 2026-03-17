@@ -65,44 +65,35 @@ function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, m
         return p, 0.0
     end
     
-    # Check for collisions with each face.
-    sides = get_sides(cell)
-    for side_i = 1:length(sides)
-        side = sides[side_i]
-        bc_side_indx = cell.bc_side_idx[side_i]
-        neighbour = cell.neighbours[side_i]
-        hit, intersection = ray_intersects_rect(p.pos, p.vel, side)
-        if !hit
-            continue
-        end
-        # Advance the particle position
-        time_to_intersection = norm(intersection - p.pos) / sqrt(p.vel[1]^2 + p.vel[2]^2 + p.vel[3]^2)
-        if time_remaining < time_to_intersection + eps(0.0)
-            p = @set p.pos += time_remaining * p.vel
-            return p, 0.0
-        else
-            time_remaining -= time_to_intersection
-            p = @set p.pos = intersection
-        end
+    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
+    intersection = p.pos + time_to_intersection * p.vel
+
+    bc_side_indx = cell.bc_side_idx[side_i]
+
+    if time_remaining < time_to_intersection + eps(0.0)
+        p = @set p.pos += time_remaining * p.vel
+        return p, 0.0
+    else
+        time_remaining -= time_to_intersection
+        p = @set p.pos = intersection
+    end
         
-        # Handle boundary condition
-        if bc_side_indx == 0
-            # Connected to another cell
-            p = @set p.cell = neighbour
-            if p.cell == 0
-                error("Particle attempted to leave cell (x=$(p.pos), v=$(p.vel))")
-            end
-        else
-            bc_side = mesh.bc_sides[bc_side_indx]
-            bc = config.boundaries[bc_side.bc_index]
-            p = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
+    # Handle boundary condition
+    if bc_side_indx == 0
+        # Connected to another cell
+        neighbour = cell.neighbours[side_i]
+        p = @set p.cell = neighbour
+        if p.cell == 0
+            error("Particle attempted to leave cell (x=$(p.pos), v=$(p.vel))")
         end
- 
-        # Handling a single collision is sufficient. Break.
-        return p, time_remaining
+    else
+        bc_side = mesh.bc_sides[bc_side_indx]
+        bc = config.boundaries[bc_side.bc_index]
+        p = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
     end
 
-    error("Particle (x=$(p.pos), v=$(p.vel)) does not intersect any faces.")
+    # Handling a single collision is sufficient. Break.
+    return p, time_remaining
 end
 
 
