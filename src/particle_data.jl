@@ -206,8 +206,8 @@ function print_particle_data_info(part_data :: ParticleData)
 end
 
 
-struct ParticleDataView
-    data :: ParticleData
+struct ParticleDataView{Features<:NamedTuple}
+    data :: ParticleData{Features}
     offset :: UInt
     stop_index :: UInt
 end
@@ -217,7 +217,7 @@ function particle_view(data::ParticleData, start_index, end_index)
     # end_index may be one smaller than start_index if the view is zero-length.
     @assert end_index + 1 >= start_index
     # The offset needs to be one smaller than the start index. Example: Starting at 1 requires adding 0 to index.
-    return ParticleDataView(data, start_index - 1, end_index)
+    return ParticleDataView(data, UInt(start_index - 1), UInt(end_index))
 end
 
 Base.length(view::ParticleDataView) = Int(view.stop_index - view.offset)
