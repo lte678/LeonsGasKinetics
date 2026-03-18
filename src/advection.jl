@@ -66,19 +66,17 @@ function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, m
     end
     
     side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
-    intersection = p.pos + time_to_intersection * p.vel
-
-    bc_side_indx = cell.bc_side_idx[side_i]
 
     if time_remaining < time_to_intersection + eps(0.0)
         p = @set p.pos += time_remaining * p.vel
         return p, 0.0
     else
         time_remaining -= time_to_intersection
-        p = @set p.pos = intersection
+        p = @set p.pos += time_to_intersection * p.vel
     end
         
     # Handle boundary condition
+    bc_side_indx = cell.bc_side_idx[side_i]
     if bc_side_indx == 0
         # Connected to another cell
         neighbour = cell.neighbours[side_i]
