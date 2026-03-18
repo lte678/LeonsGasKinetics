@@ -273,3 +273,7 @@ function mesh_from_h5(path)
     # Return mesh
     return Mesh(cells, bc_names, bc_sides)
 end
+
+
+export Cell, Hexahedron
+export cell_contains

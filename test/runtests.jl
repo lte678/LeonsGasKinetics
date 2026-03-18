@@ -105,6 +105,100 @@ using LinearAlgebra
     end
 end
 
+
+@testset "Hexahedron Cell Containment" begin
+    # Create a unit cube [0, 1]^3 for simplicity
+    # Normals pointing OUTWARD
+    normals = SVector{6, SVector{3, Float64}}(
+        [1, 0, 0],  # +x
+        [-1, 0, 0], # -x
+        [0, 1, 0],  # +y
+        [0, -1, 0], # -y
+        [0, 0, 1],  # +z
+        [0, 0, -1]  # -z
+    )
+
+    origins = SVector{6, SVector{3, Float64}}(
+        [1, 0.5, 0.5], # +x face
+        [0, 0.5, 0.5], # -x face
+        [0.5, 1, 0.5], # +y face
+        [0.5, 0, 0.5], # -y face
+        [0.5, 0.5, 1], # +z face
+        [0.5, 0.5, 0]  # -z face
+    )
+
+    verts = SVector{8, SVector{3, Float64}}(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 1.0],
+        [1.0, 1.0, 1.0],
+        [0.0, 1.0, 1.0],
+    )
+    
+    cube = Hexahedron(
+        verts, normals, origins, 
+        SVector(0.5, 0.5, 0.5), # barycenter
+        zeros(SVector{6, UInt32}), zeros(SVector{6, UInt32}), 1.0
+    )
+
+    @testset "Basic internal/external" begin
+        @test cell_contains(cube, SVector(0.5, 0.5, 0.5)) == true
+        @test cell_contains(cube, SVector(1.5, 0.5, 0.5)) == false
+        @test cell_contains(cube, SVector(-0.1, 0.5, 0.5)) == false
+    end
+
+    @testset "Face boundaries and epsilon offsets" begin
+        # Test directions: +x, -x, +y, -y, +z, -z
+        directions = [
+            SVector(1.0, 0.0, 0.0), SVector(-1.0, 0.0, 0.0),
+            SVector(0.0, 1.0, 0.0), SVector(0.0, -1.0, 0.0),
+            SVector(0.0, 0.0, 1.0), SVector(0.0, 0.0, -1.0)
+        ]
+        
+        # Center of each face
+        face_centers = [
+            SVector(1.0, 0.5, 0.5), SVector(0.0, 0.5, 0.5),
+            SVector(0.5, 1.0, 0.5), SVector(0.5, 0.0, 0.5),
+            SVector(0.5, 0.5, 1.0), SVector(0.5, 0.5, 0.0)
+        ]
+
+        for i in 1:6
+            p_on = face_centers[i]
+            dir = directions[i]
+            
+            # Precisely on the surface
+            @test cell_contains(cube, p_on)
+            
+            # Inside by 2*epsilon
+            p_in = p_on - 2 * dir .* eps(dot(dir, p_on))
+            @test cell_contains(cube, p_in)
+            
+            # Outside by 2*epsilon
+            p_out = p_on + 2 * dir .* eps(dot(dir, p_on))
+            @test cell_contains(cube, p_out)
+        end
+    end
+
+    @testset "Edge and corner" begin
+        # Edge test: Edge is defined along [0, 1, 1] (X-axis at Y=1, Z=1)
+        # Test just outside the edge in the diagonal direction
+        edge_point_out = SVector(0.5, 1.0 + 1e-12, 1.0 + 1e-12)
+        @test cell_contains(cube, edge_point_out) == false
+
+        # Corner test: Corner at [1, 1, 1]
+        # Test slightly outside the corner in all three dimensions
+        corner_point_out = SVector(1.0, 1.0, 1.0) + fill(1e-12, 3)
+        @test cell_contains(cube, corner_point_out) == false
+        
+        # Test corner exactly
+        @test cell_contains(cube, SVector(1.0, 1.0, 1.0)) == true
+    end
+end
+
+
 @testset "Simulation Test" begin
     @testset "BGK Couette" begin
         # Test shear flow between moving plates
