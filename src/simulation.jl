@@ -66,8 +66,8 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                     cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cell_part_count[i] - 1)
 
                     # Perform collision on the current cell's particles.
-                    if flow_vars.density < 0.0 || any(flow_vars.temperature .< 0.0) || isnan(flow_vars.density) || any(isnan.(flow_vars.temperature)) || any(isnan.(flow_vars.velocity))
-                        error("Flow parameters went out of range in cell $i with $(state.cell_part_count[i]) particles.")
+                    if flow_vars.density < 0.0 || flow_vars.mean_temperature < 0.0 || isnan(flow_vars.density) || isnan(flow_vars.mean_temperature) || any(isnan.(flow_vars.velocity))
+                        error("Flow parameters went out of range in cell $i with $(state.cell_part_count[i]) particles.\n$flow_vars")
                     end
                     config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt)
                 end

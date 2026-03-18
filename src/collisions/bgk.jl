@@ -4,6 +4,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using Random
+using InteractiveUtils
 
 function swap!(array, idx1, idx2)
     tmp = array[idx1]
@@ -23,6 +24,11 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
         error("\"BGK\" collision operator only supports single species.")
     end
     spec = config.species[1]
+
+    vr_mass = 0.0
+    for p in pdata
+        vr_mass += p.features.vr_weight
+    end
 
     # Calculate the relax probability
     dyn_visc = dynamic_viscosity(spec)
@@ -47,6 +53,10 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
             pdata[i] = particle
             n_relaxed += 1
         end
+    end
+
+    if config.vrbgk.enabled
+        vrbgk_conserve_mass(pdata, vr_mass; silent=config.silent)
     end
 
     # Update cell averages

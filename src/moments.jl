@@ -177,16 +177,16 @@ function calc_flow_properties(moments::VRBGKMomentAccumulator, config, cell_volu
     T_eq = config.vrbgk.ref_temperature  # Reference temperature [K]
     
     # Physical particles represented by equilibrium distribution
-    count_eq = n_eq * cell_volume / mpf
+    # This is the number of simulation particles expected at equilibrium, multiplied by the number of batches
+    count_eq = moments.samples * n_eq * cell_volume / mpf
     
     # Particle count
     count_vr = moments.count - moments.vr_sum + count_eq
     # Velocity
     c_i = moments.c_i ./ moments.count
     c_ii = moments.c_ii ./ moments.count .+ (count_eq / count_vr) * BOLTZMANN * T_eq / mass
-    
     # Thermal velocity squared
-    temperature = (config.species[1].mass / BOLTZMANN) * (c_ii - c_i.^2)
+    temperature = (mass / BOLTZMANN) * (c_ii - c_i.^2)
     
     # Number density
     density = count_vr * mpf / cell_volume

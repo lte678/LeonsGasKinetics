@@ -77,8 +77,6 @@ end
 
 
 """
-    wall_distribution(spec_id, velo_square, wall_temp, trans_acc, mass_ic) -> Vector{Float64}
-
 Compute the post-wall-collision velocity vector for a reflected particle.
 The reflection model uses the wall temperature `wall_temp` and the
 translational accommodation coefficient `trans_acc`.  The kinetic energy
@@ -86,7 +84,6 @@ is adjusted stochastically and the outgoing direction is uniformly
 randomised in the tangent plane.
 
 # Arguments
-- `spec_id`    : species identifier (unused except for dispatch)
 - `velo_square`: squared magnitude of the incoming velocity
 - `wall_temp`  : wall temperature (K)
 - `trans_acc`  : translational accommodation coefficient ∈ [0,1]
