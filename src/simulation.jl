@@ -104,7 +104,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         # Print report every config.report_interval seconds.
         if !config.silent
             maybe_report(reporter) do
-                @printf "[Iteration = %6d] t = %8.3fμs\n" iteration state.time * 1e6
+                @printf "[Iteration = %6d] t = %12.6fμs\n" iteration state.time * 1e6
             end
         end
 
