@@ -25,9 +25,9 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
     end
     spec = config.species[1]
 
-    vr_mass = 0.0
-    for p in pdata
-        vr_mass += p.features.vr_weight
+    if config.vrbgk.enabled
+        vr_mass = vrbgk_calculate_mass(pdata)
+        vr_mean = vr_mass / n_part
     end
 
     # Calculate the relax probability
@@ -45,9 +45,10 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
             particle = @set particle.vel = sample_maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
 
             if config.vrbgk.enabled
-                particle = @set particle.features.vr_weight = 
-                    (config.vrbgk.ref_density .* maxwellian(config.vrbgk.ref_temperature, [0.0, 0.0, 0.0]   , spec.mass, particle.vel)) ./
-                    (       flow_vars.density .* maxwellian(flow_vars.mean_temperature  , flow_vars.velocity, spec.mass, particle.vel))
+                f_eq = maxwellian(config.vrbgk.ref_temperature, [0.0, 0.0, 0.0]   , spec.mass, particle.vel)
+                f    = maxwellian(flow_vars.mean_temperature  , flow_vars.velocity, spec.mass, particle.vel)
+                
+                particle = @set particle.features.vr_weight = vr_mean * f_eq / f
             end
             # Update particle
             pdata[i] = particle
