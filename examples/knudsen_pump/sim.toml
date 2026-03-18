@@ -1,0 +1,75 @@
+name = "knudsen_pump"
+meshfile = "knudsen_pump_mesh.h5"
+
+[timestep]
+tend = 0.1e-06
+dt = 2.5e-11
+
+[output]
+output_interval = 1000
+
+[species.N2]
+T_ref = 273.0
+d_ref = 4.17e-10
+mass = 4.815566579e-26
+omega = 0.24
+
+[dsmc]
+collision_operator = "bgk"
+mpf = 500.0
+
+[denoise]
+enabled = true
+T_ref = 450.15
+n_ref = 1.85e+25
+
+[[boundary]]
+identifier = "ChannelCold"
+type = "diffuse"
+accommodation = 1.0
+temperature = 398.15
+
+[[boundary]]
+identifier = "ChannelHot"
+type = "diffuse"
+accommodation = 1.0
+temperature = 398.15
+
+[[boundary]]
+identifier = "CavityHotL"
+type = "diffuse"
+accommodation = 1.0
+temperature = 500.15
+
+[[boundary]]
+identifier = "CavityHotR"
+type = "diffuse"
+accommodation = 1.0
+temperature = 500.15
+
+[[boundary]]
+identifier = "CavityCold"
+type = "diffuse"
+accommodation = 1.0
+temperature = 398.15
+
+[[boundary]]
+identifier = "OpenCold"
+type = "diffuse"
+accommodation = 1.0
+temperature = 398.15
+
+[[boundary]]
+identifier = "OpenHot"
+type = "diffuse"
+accommodation = 1.0
+temperature = 500.15
+
+[[boundary]]
+identifier = "Symmetry"
+type = "symmetric"
+
+[[initialization]]
+species = "N2"
+density = 1.85e+25
+temperature = 398.15
