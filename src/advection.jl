@@ -40,7 +40,7 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
 
         particles[i] = p
     end
-    
+
     # Recount after parallel advection to avoid write races on cell_part_count.
     fill!(sim.cell_part_count, 0)
     for p in sim.particles
@@ -113,8 +113,8 @@ function vrbgk_advection_finalize(particles::ParticleData, mesh::Mesh, config::S
             bc_side = mesh.bc_sides[particles[i].features.last_collided_side]
             # Performing this check only when actually required avoid producing an error message in the very common case of
             # low particle counts. In such a case, the incident_sum is both NaN, but also unused since no particle collided.
-            if bc_side.vrbgk_incident_sum == NaN
-                bc_side.vrbgk_incident_sum = 1.0 # Safe-ish default
+            if isnan(bc_side.vrbgk_incident_sum)
+                @atomic bc_side.vrbgk_incident_sum = 1.0 # Safe-ish default
                 if !config.silent
                     @printf "Warning: No valid particles collided with side %d\n" particles[i].features.last_collided_side
                 end

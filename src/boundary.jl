@@ -57,7 +57,6 @@ function handle_boundary(
     new_vel = new_local_vel[1]*[0, 1, 0] + new_local_vel[2]*[0, 0, 1] + new_local_vel[3]*side.normal
     new_vel += boundary.velocity
     particle = @set particle.vel = new_vel
-
     # Update the variance reduction weight if applicable
     if haskey(particle.features, :vr_weight)
         if particle.features.last_collided_side == 0
@@ -70,6 +69,7 @@ function handle_boundary(
             sqrt(boundary.temperature / config.vrbgk.ref_temperature) *
             maxwellian(config.vrbgk.ref_temperature, zeros(3)         , species.mass, new_vel) /
             maxwellian(        boundary.temperature, boundary.velocity, species.mass, new_vel)
+        vrbgk_check_weight(particle.features.vr_weight)
     end
 
     return particle
