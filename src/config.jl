@@ -38,7 +38,7 @@ struct SimulationConfig{T1<:Function}
     # Sampling fraction
     sample_fraction :: Float64
     # Number of iterations between file outputs
-    output_interval :: UInt32
+    output_interval :: Int64
     # Reporting inveral for console output
     report_interval :: Float64
     # Project name
@@ -89,7 +89,7 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         Float64(config["timestep"]["tend"]),
         Float64(config["timestep"]["dt"]),
         get(config["output"], "sample_fraction", 1.0),
-        UInt32(get(config["output"], "output_interval", 0)),
+        get(config["output"], "output_interval", 0),
         get(config["output"], "report_interval", 5.0),
         config["name"],
         joinpath(config_dir, config["meshfile"]),

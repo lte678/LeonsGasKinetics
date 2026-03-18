@@ -61,12 +61,17 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         timed_region(state.perf_counters, :collision) do
             particle_start_idx = 1
             for i in 1:n_cells
-                flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
-                cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cell_part_count[i] - 1)
+                if state.cell_part_count[i] > 1
+                    flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
+                    cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cell_part_count[i] - 1)
 
-                # Perform collision on the current cell's particles.
-                config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt)
-                
+                    # Perform collision on the current cell's particles.
+                    if flow_vars.density < 0.0 || any(flow_vars.temperature .< 0.0) || isnan(flow_vars.density) || any(isnan.(flow_vars.temperature)) || any(isnan.(flow_vars.velocity))
+                        error("Flow parameters went out of range in cell $i with $(state.cell_part_count[i]) particles.")
+                    end
+                    config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt)
+                end
+
                 particle_start_idx += state.cell_part_count[i]
             end
         end
@@ -78,15 +83,17 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                 config.silent || @printf "Starting sampling.\n"
             end
             for i in 1:n_cells
-                flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
-                add_sample!(cell_accumulators[i][:u_x] , flow_vars.velocity[1])
-                add_sample!(cell_accumulators[i][:u_y] , flow_vars.velocity[2])
-                add_sample!(cell_accumulators[i][:u_z] , flow_vars.velocity[3])
-                add_sample!(cell_accumulators[i][:T_x], flow_vars.temperature[1])
-                add_sample!(cell_accumulators[i][:T_y], flow_vars.temperature[2])
-                add_sample!(cell_accumulators[i][:T_z], flow_vars.temperature[3])
-                add_sample!(cell_accumulators[i][:density], flow_vars.density)
-                add_sample!(cell_accumulators[i][:sim_part_count], flow_vars.sim_particle_count)
+                if state.cell_part_count[i] > 1
+                    flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
+                    add_sample!(cell_accumulators[i][:u_x] , flow_vars.velocity[1])
+                    add_sample!(cell_accumulators[i][:u_y] , flow_vars.velocity[2])
+                    add_sample!(cell_accumulators[i][:u_z] , flow_vars.velocity[3])
+                    add_sample!(cell_accumulators[i][:T_x], flow_vars.temperature[1])
+                    add_sample!(cell_accumulators[i][:T_y], flow_vars.temperature[2])
+                    add_sample!(cell_accumulators[i][:T_z], flow_vars.temperature[3])
+                    add_sample!(cell_accumulators[i][:density], flow_vars.density)
+                    add_sample!(cell_accumulators[i][:sim_part_count], flow_vars.sim_particle_count)
+                end
             end
         
             # Regular outputs

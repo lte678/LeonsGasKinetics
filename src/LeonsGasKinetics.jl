@@ -42,16 +42,21 @@ include("output/output.jl")
 function precompile(mesh, sim_config)
     # Prepare particle data.
     part_counts = zeros(UInt32, length(mesh.cells))
-    part_counts[1] = 1
+    part_counts[1] = 2
     part_data = ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled)
     if sim_config.vrbgk.enabled
         feature_data = (; :vr_weight => 1.0)
     else
         feature_data = (;)
     end
+    
     insert_particle!(
         part_data,
-        SingleParticle(mesh.cells[1].barycenter, [1000.0, 1000.0, 1000.0], 1, feature_data)
+        SingleParticle(mesh.cells[1].barycenter, [100.0, 100.0, 100.0], 1, feature_data)
+    )
+    insert_particle!(
+        part_data,
+        SingleParticle(mesh.cells[1].barycenter, [-100.0, -100.0, -100.0], 1, feature_data)
     ) 
     
     sim = SimulationState(
@@ -62,6 +67,7 @@ function precompile(mesh, sim_config)
     )
     sim_config = @set sim_config.t_end = sim_config.dt*100
     sim_config = @set sim_config.silent = true
+    sim_config = @set sim_config.output_interval = 0  # No outputs
     run_simulation!(sim, mesh, sim_config)
 end
 
