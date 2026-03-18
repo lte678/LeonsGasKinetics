@@ -233,6 +233,9 @@ function mesh_from_h5(path)
 
             # Calculate barycenter
             barycenter = sum(vertices) ./ 8
+            if abs(barycenter[3]) > 1e-10
+                error("Element $elem_id is not centered on z=0 (z=$(barycenter[3]))")
+            end
 
             # Read boundary conditions
             bcs = Vector{UInt32}(undef, last_side - offset_side)
