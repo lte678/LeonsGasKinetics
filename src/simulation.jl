@@ -102,6 +102,9 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                 timed_region(state.perf_counters, :postprocessing) do
                     write_flow_state(cell_accumulators, state.time, mesh, config)
                 end
+                if config.accumulation_mode == :per_interval
+                    empty!.(cell_accumulators)
+                end
             end
         end
 

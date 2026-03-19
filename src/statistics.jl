@@ -7,12 +7,17 @@ mutable struct Averager
     end
 end
 
-function add_sample!(accumulator::Averager, sample)
-    accumulator.sum += sample
-    accumulator.count += 1
+function add_sample!(acc::Averager, sample)
+    acc.sum += sample
+    acc.count += 1
 end
 
-mean(accumulator::Averager) = accumulator.sum / accumulator.count
+mean(acc::Averager) = acc.sum / acc.count
+
+function clear!(acc::Averager)
+    acc.sum = 0.0
+    acc.count = 0
+end
 
 
 mutable struct Covariance
@@ -43,4 +48,9 @@ function covariance(acc::Covariance)
     
     # Sample covariance (divides by n - 1)
     return (mean_xy - mean_x * mean_y) * n / (n - 1)
+end
+
+function clear!(acc::Covariance)
+    acc.sum = 0.0
+    acc.count = 0
 end

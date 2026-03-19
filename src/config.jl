@@ -4,6 +4,30 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+Retrieves a value from `dict[key]`. Validates that the value is within `options`.
+Returns the value as a `Symbol`.
+
+# Arguments
+- `dict`: The dictionary to search.
+- `key`: The key to lookup.
+- `options`: A collection of strings representing valid choices.
+- `default`: (Optional) The default string if the key is missing.
+"""
+function get_option(dict, key, options::AbstractVector{String}; default=nothing)
+    val = get(dict, key, default)
+
+    if isnothing(val)
+        error("Missing required configuration key: \"$key\". Must be one of $options")
+    end
+    if !(val ∈ options)
+        error("Unknown option \"$val\" for \"$key\". Must be ∈ $options.")
+    end
+    
+    return Symbol(val)
+end
+
+
 struct SymmetricBoundary end
 struct ReflectiveBoundary end
 struct DiffuseBoundary
@@ -53,6 +77,8 @@ struct SimulationConfig{T1<:Function}
     asserts :: Bool
     # Settings for VRBGK
     vrbgk :: VRBGKConfig
+    # Sample accumulation mode: :continuous (entire sim) or :per_interval (reset on each output)
+    accumulation_mode :: Symbol
 end
 
 
@@ -71,6 +97,17 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         push!(boundaries, Boundary(boundary_from_config(config["boundary"][bc_idx])))
     end
 
+    accumulation_mode = get_option(
+        config["output"],
+        "accumulation",
+        ["continuous", "per-interval"],
+        default="continuous"
+    )
+
+    coll_op = get_coll_op(
+        get_option(config["dsmc"], "collision_operator", ["bgk", "none"])
+    )
+
     if haskey(config, "denoise") && config["denoise"]["enabled"]
         vrbgk_config = VRBGKConfig(
             true,
@@ -84,7 +121,7 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
     return SimulationConfig(
         species,
         boundaries,
-        coll_op_from_config(config["dsmc"]["collision_operator"]),
+        coll_op,
         Float64(config["dsmc"]["mpf"]),
         Float64(config["timestep"]["tend"]),
         Float64(config["timestep"]["dt"]),
@@ -97,31 +134,30 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         false,
         asserts,
         vrbgk_config,
+        accumulation_mode,
     )
 end
 
 function boundary_from_config(config)
-    type = get(config, "type", "reflective")
-    if type == "reflective"
+    type = get_option(config, "type", ["reflective", "symmetric", "diffuse"], default="reflective")
+    if type == :reflective
         return ReflectiveBoundary()
-    elseif type == "symmetric"
+    elseif type == :symmetric
         return SymmetricBoundary()
-    elseif type == "diffuse"
+    elseif type == :diffuse
         return DiffuseBoundary(
             config["accommodation"],
             config["temperature"],
             get(config, "velocity", SVector(0.0, 0.0, 0.0)),
         )
-    else
-        error("Unknown boundary type \"$type\"")
     end
 end
 
 
-function coll_op_from_config(operator_name)
-    if operator_name == "bgk"
+function get_coll_op(operator_name)
+    if operator_name == :bgk
         return bgk_collision!
-    elseif operator_name == "none"
+    elseif operator_name == :none
         return (pdata, samples, config, flow_variables, dt) -> ()
     else
         error("Unknown DSMC collision operator \"$operator_name\"")
