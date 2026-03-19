@@ -1,6 +1,8 @@
 name = "knudsen_pump"
 meshfile = "knudsen_pump_mesh.h5"
 
+spatial_dof = 2
+
 [timestep]
 tend = 0.1e-06
 dt = 2.5e-11

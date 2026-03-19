@@ -61,18 +61,16 @@ end
 
 # This function dynamically dispatches on the cell type
 function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, mesh, config) :: Tuple{SingleParticle, Float64}
-    if all(abs.(p.vel) .< eps(0.0))
-        return p, 0.0
-    end
-    
-    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
+    # This is the general purpose 3D code. Right now, some things are still assumed to be 2D
+    #side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
+    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins, Val(config.spatial_dof))
 
-    if time_remaining < time_to_intersection + eps(0.0)
-        p = @set p.pos += time_remaining * p.vel
+    if time_remaining < time_to_intersection
+        p = @set p.pos += time_remaining * SVector(p.vel[1], p.vel[2], 0.0)
         return p, 0.0
     else
         time_remaining -= time_to_intersection
-        p = @set p.pos += time_to_intersection * p.vel
+        p = @set p.pos += time_to_intersection * SVector(p.vel[1], p.vel[2], 0.0)
     end
         
     # Handle boundary condition

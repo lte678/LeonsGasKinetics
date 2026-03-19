@@ -157,9 +157,6 @@ function run(args)
     #print(@time run_simulation!(sim, mesh, sim_config))
 end
 
-# Exports for unit tests
-export find_exit_face
-
 export run_simulation!, run_simulation_from_config
 
 end

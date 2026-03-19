@@ -27,6 +27,19 @@ function get_option(dict, key, options::AbstractVector{String}; default=nothing)
     return Symbol(val)
 end
 
+function get_option(dict, key, options::AbstractVector{<:Number}; default=nothing)
+    val = get(dict, key, default)
+
+    if isnothing(val)
+        error("Missing required configuration key: \"$key\". Must be one of $options")
+    end
+    if !(val ∈ options)
+        error("Unknown option \"$val\" for \"$key\". Must be ∈ $options.")
+    end
+    
+    return val
+end
+
 
 struct SymmetricBoundary end
 struct ReflectiveBoundary end
@@ -79,6 +92,8 @@ struct SimulationConfig{T1<:Function}
     vrbgk :: VRBGKConfig
     # Sample accumulation mode: :continuous (entire sim) or :per_interval (reset on each output)
     accumulation_mode :: Symbol
+    # 3D, 2D with z=0
+    spatial_dof :: Int64
 end
 
 
@@ -102,6 +117,10 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         "accumulation",
         ["continuous", "per-interval"],
         default="continuous"
+    )
+
+    spatial_dof = get_option(
+        config, "spatial_dof", [2, 3], default=3
     )
 
     coll_op = get_coll_op(
@@ -135,6 +154,7 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         asserts,
         vrbgk_config,
         accumulation_mode,
+        spatial_dof
     )
 end
 

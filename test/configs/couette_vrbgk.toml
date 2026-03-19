@@ -1,6 +1,8 @@
 name = "Couette"
 meshfile = "couette_mesh.h5"
 
+spatial_dof = 3
+
 [timestep]
 tend = 0.1
 dt = 5e-4

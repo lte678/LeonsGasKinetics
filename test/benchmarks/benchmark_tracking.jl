@@ -40,6 +40,15 @@ function run_bench(origins, dirs)
     end
 end
 
+function run_bench2d(origins, dirs)
+    total_dist = 0.0
+    for i in 1:N_TESTS
+        coll_i, coll_dist = find_exit_face_2d(origins[i], dirs[i], normals, vertices)
+        total_dist += coll_dist
+    end
+    return total_dist
+end
+
 run_bench(origins, dirs)
 
 # Run the benchmark
@@ -47,7 +56,7 @@ run_bench(origins, dirs)
 #Profile.Allocs.@profile run_bench(origins, dirs)
 #PProf.Allocs.pprof()
 
-suite = @benchmarkable run_bench($origins, $dirs)
+suite = @benchmarkable run_bench2d($origins, $dirs)
 results = run(suite, verbose=true)
 
 display(results)

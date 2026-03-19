@@ -255,6 +255,12 @@ function mesh_from_h5(path)
                 neighbours[i] = side_info[3, side_idx]
             end
             normals = map(side_normal, sides)
+            # Make sure that S1 and S6 are the Z- and Z+ faces.
+            # TODO: Disable this check if in 3D case.
+            if abs(normals[2][3]) > 1e-12 || abs(normals[3][3]) > 1e-12 || abs(normals[4][3]) > 1e-12 || abs(normals[5][3]) > 1e-12
+                error("Element $elem_id side ordering is incorrect for 2D mesh.")
+            end
+
             face_origins = map(v -> v[1], sides)
             
             cell = Hexahedron(vertices, normals, face_origins, barycenter, bcs, neighbours, 0.0)
