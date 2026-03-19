@@ -76,6 +76,13 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
             end
         end
 
+        # Print report every config.report_interval seconds.
+        if !config.silent
+            maybe_report(reporter) do
+                @printf "[Iteration = %6d] t = %12.6fμs\n" iteration state.time * 1e6
+            end
+        end
+
         # Add the moments to the time average
         if state.time > sampling_start_time
             if state.time - dt < sampling_start_time
@@ -110,13 +117,6 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
 
         # Clear moments
         clear_moments!(cell_moments)
-
-        # Print report every config.report_interval seconds.
-        if !config.silent
-            maybe_report(reporter) do
-                @printf "[Iteration = %6d] t = %12.6fμs\n" iteration state.time * 1e6
-            end
-        end
 
         iteration += 1
     end
