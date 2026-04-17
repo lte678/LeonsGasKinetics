@@ -46,8 +46,12 @@ function ParticleData(; vrbgk_enabled=false)
     feature_fields = []
     feature_data = []
     if vrbgk_enabled
-        push!(feature_fields, :vr_weight, :last_collided_side)
-        push!(feature_data, Vector{Float64}(), Vector{UInt64}())
+        # vr_weight is the Variance Reduction weight according to Landon 2011.
+        # last_collided_weight and last_collided_side are only for handling of diffuse boundary conditions.
+        # last_collided_weight is the variance reduction factor f_eq/f_wall of the last boundary which is
+        # precisely last_collided_side. This does not yet contain the density, and must therefore be scaled.
+        push!(feature_fields, :vr_weight, :last_collided_weight, :last_collided_side)
+        push!(feature_data, Vector{Float64}(), Vector{Float64}(), Vector{UInt64}())
     end
 
     return ParticleData(

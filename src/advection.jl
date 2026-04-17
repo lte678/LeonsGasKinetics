@@ -179,7 +179,6 @@ end
 
 
 function vrbgk_advection_finalize(particles::ParticleData, mesh::Mesh, config::SimulationConfig)
-    @printf ">>>"
     # Calculate the correction factor for each boundary side.
     for i in 1:length(mesh.bc_sides)
         if variantof(config.boundaries[mesh.bc_sides[i].bc_index]) == DiffuseBoundary
@@ -187,12 +186,6 @@ function vrbgk_advection_finalize(particles::ParticleData, mesh::Mesh, config::S
                 @atomic mesh.bc_sides[i].vrbgk_incident_sum = NaN
             else
                 @atomic mesh.bc_sides[i].vrbgk_incident_sum /= mesh.bc_sides[i].vrbgk_incident_count
-                if mesh.bc_sides[i].adjacent_cell == 1741 && mesh.bc_sides[i].normal[1] < -0.5
-                    @printf "Average incident weight on left side is %.3f with %d particles\n"  mesh.bc_sides[i].vrbgk_incident_sum  mesh.bc_sides[i].vrbgk_incident_count
-                end
-                if mesh.bc_sides[i].adjacent_cell == 1741 && mesh.bc_sides[i].normal[2] < -0.5
-                    @printf "Average incident weight on top side is %.3f with %d particles\n"  mesh.bc_sides[i].vrbgk_incident_sum  mesh.bc_sides[i].vrbgk_incident_count
-                end
             end
         end
     end
@@ -201,17 +194,17 @@ function vrbgk_advection_finalize(particles::ParticleData, mesh::Mesh, config::S
     for i in 1:length(particles)
         if particles[i].features.last_collided_side != 0
             bc_side = mesh.bc_sides[particles[i].features.last_collided_side]
-            # Performing this check only when actually required avoid producing an error message in the very common case of
-            # low particle counts. In such a case, the incident_sum is both NaN, but also unused since no particle collided.
+            # This should be impossible, but we will let it pass with a warning anyway.
             if isnan(bc_side.vrbgk_incident_sum)
-                @atomic bc_side.vrbgk_incident_sum = 1.0 # Safe-ish default
+                # The current value of vr_weight is best left untouched.
                 if !config.silent
                     @printf "Warning: No valid particles collided with side %d\n" particles[i].features.last_collided_side
                 end
+            else
+                p = particles[i]
+                p = @set p.features.vr_weight = p.features.last_collided_weight * bc_side.vrbgk_incident_sum
+                particles[i] = p
             end
-            p = particles[i]
-            p = @set p.features.vr_weight *= bc_side.vrbgk_incident_sum
-            particles[i] = p
         end
     end
 end
