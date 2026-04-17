@@ -100,6 +100,9 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                     add_sample!(cell_accumulators[i][:T_z], flow_vars.temperature[3])
                     add_sample!(cell_accumulators[i][:density], flow_vars.density)
                     add_sample!(cell_accumulators[i][:sim_part_count], flow_vars.sim_particle_count)
+                    if config.vrbgk.enabled
+                        add_sample!(cell_accumulators[i][:vr_weight], cell_moments[i].vr_sum / cell_moments[i].count)
+                    end
                 end
             end
         

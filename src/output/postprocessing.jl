@@ -25,5 +25,9 @@ function postprocess(accumulators, config, mesh)
         output["BGK_MeanRelaxationRate"] = [acc[:relaxation_rate] for acc in means]
     end
 
+    if haskey(means[1], :vr_weight)
+        output["VRBGK_MeanImportance"] = [acc[:vr_weight] for acc in means]
+    end
+
     return output
 end
