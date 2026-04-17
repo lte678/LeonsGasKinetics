@@ -28,10 +28,11 @@ Wall velocity = +-100m/s, Kn=1.0
 - C.D. Munz et al, "_Coupled Particle-In-Cell and Direct Simulation Monte Carlo method for simulating reactive plasma flows_". 2014
 - G.A. Bird, "_Molecular Gas Dynamics and the Direct Simulation of Gas Flows_". 1994
 - M. Pfeiffer, "_Particle-based fluid dynamics: Comparison of different Bhatnagar-Gross-Krook models and the direct simulation Monte Carlo method for hypersonic flows_". 2018
-- C. D. Landon and N. G. Hadjiconstantinou, "_Variance-Reduced Direct Simulation Monte Carlo with the Bhatnagar-Gross-Krook Collision Operator_". 2011
+- C.D. Landon and N. G. Hadjiconstantinou, "_Variance-Reduced Direct Simulation Monte Carlo with the Bhatnagar-Gross-Krook Collision Operator_". 2011
+- A.L. Garcia, W. Wagner, "_Generation of the Maxwellian inflow distribution_". 2006
 
 # License
-Leon's Gas Kinetics  Copyright (C) 2025  Leon Teichroeb  
+Leon's Gas Kinetics  Copyright (C) 2026  Leon Teichroeb  
 This program comes with ABSOLUTELY NO WARRANTY.  
 This is free software, and you are welcome to redistribute it
 under certain conditions; for details view LICENSE.

@@ -1,5 +1,5 @@
 # Leon's Gas Kinetics
-# Copyright (C) 2025  Leon Teichroeb
+# Copyright (C) 2026  Leon Teichroeb
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
@@ -76,7 +76,7 @@ end
 
 
 function run(args)
-    arg_set = ArgParseSettings(description="Leon's Gas Kinetics  Copyright (C) 2025 Leon Teichroeb. This program comes with ABSOLUTELY NO WARRANTY; for details see LICENSE.")
+    arg_set = ArgParseSettings(description="Leon's Gas Kinetics  Copyright (C) 2026 Leon Teichroeb. This program comes with ABSOLUTELY NO WARRANTY; for details see LICENSE.")
     @add_arg_table! arg_set begin
         "--asserts"
             help = "Enables extra assertions (slow!)"
@@ -98,7 +98,7 @@ function run(args)
         mkdir(args["output_dir"])
     end
 
-    println("Leon's Gas Kinetics  Copyright (C) 2025 Leon Teichroeb")
+    println("Leon's Gas Kinetics  Copyright (C) 2026 Leon Teichroeb")
     println("This program comes with ABSOLUTELY NO WARRANTY; for details see LICENSE.")
     println()
 
