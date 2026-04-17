@@ -31,6 +31,10 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
             p_old = p
             p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config)
 
+            if p.cell == 0
+                break  # Particle absorbed by open boundary; skip further steps and asserts
+            end
+
             if config.asserts && !cell_contains(mesh.cells[p.cell], p.pos)
                 println("WARNING: Lost particle while moving from $(p_old.pos) @ cell $(p_old.cell) -> $(p.pos) @ cell $(p.cell)")
                 p = p_old
@@ -40,6 +44,12 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
 
         particles[i] = p
     end
+
+    # Remove particles absorbed by open boundaries (marked cell = 0 by take_advection_step).
+    compact_deleted_particles!(sim.particles)
+
+    # Insert new particles entering through open boundaries.
+    insert_open_boundary_particles!(sim, mesh, config, dt)
 
     # Recount after parallel advection to avoid write races on cell_part_count.
     fill!(sim.cell_part_count, 0)
@@ -85,7 +95,12 @@ function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, m
     else
         bc_side = mesh.bc_sides[bc_side_indx]
         bc = config.boundaries[bc_side.bc_index]
-        p = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
+        if variantof(bc) == OpenBoundary
+            # Absorb the particle; cell = 0 signals deletion to advect!
+            p = @set p.cell = UInt64(0)
+        else
+            p = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
+        end
     end
 
     # Handling a single collision is sufficient. Break.
@@ -93,7 +108,78 @@ function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, m
 end
 
 
+"""
+Remove particles absorbed by open boundaries (marked with cell = 0) by compacting in place.
+"""
+function compact_deleted_particles!(pdata::ParticleData)
+    write_idx = 1
+    for read_idx in 1:length(pdata)
+        if pdata.cell[read_idx] != 0
+            if write_idx != read_idx
+                pdata[write_idx] = pdata[read_idx]
+            end
+            write_idx += 1
+        end
+    end
+    resize!(pdata, write_idx - 1)
+end
+
+
+"""
+Insert new particles entering the domain through open boundaries.
+
+For each open boundary side, the expected number of simulation particles crossing inward
+during `dt` is:
+
+    N = density * face_area * v_flux * dt / mpf
+
+where v_flux is the half-range Maxwell flux speed (`mean_inflow_flux_speed`). The integer
+count is obtained by stochastic rounding of N. Each new particle is placed at a random
+position on the face, assigned an inflow-weighted velocity, and then advected for a
+uniform-random fraction of `dt` to simulate continuous rather than instantaneous insertion.
+"""
+function insert_open_boundary_particles!(sim::SimulationState, mesh::Mesh, config::SimulationConfig, dt::Float64)
+    species = config.species[1]
+
+    for bc_side in mesh.bc_sides
+        bc = config.boundaries[bc_side.bc_index]
+        variantof(bc) == OpenBoundary || continue
+        ob = variant(bc)  # ::OpenBoundary
+
+        v_flux = mean_inflow_flux_speed(bc_side.normal, ob.temperature, ob.velocity, species.mass)
+        expected_sim = ob.density * bc_side.area * v_flux * dt / config.mpf
+
+        # Make sure that the correct number of particles are emitted on average, even with low counts
+        n_new = floor(Int, expected_sim + rand())
+
+        for _ in 1:n_new
+            pos = random_point_on_face(bc_side.face_vertices)
+            vel = sample_inflow_maxwellian(bc_side.normal, ob.temperature, ob.velocity, species.mass)
+
+            if config.vrbgk.enabled
+                features = (vr_weight = 1.0, last_collided_side = UInt64(0))
+            else
+                features = (;)
+            end
+
+            p = SingleParticle(pos, vel, UInt64(bc_side.adjacent_cell), features)
+
+            # Advect by a random sub-interval of dt to simulate a continuous flux.
+            time_remaining = rand() * dt
+            while time_remaining > 0.0
+                cell = mesh.cells[p.cell]
+                p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config)
+                p.cell == 0 && break  # Left through another open boundary; discard
+            end
+
+            p.cell != 0 && insert_particle!(sim.particles, p)
+        end
+    end
+end
+
+
 function vrbgk_advection_finalize(particles::ParticleData, mesh::Mesh, config::SimulationConfig)
+    @printf ">>>"
     # Calculate the correction factor for each boundary side.
     for i in 1:length(mesh.bc_sides)
         if variantof(config.boundaries[mesh.bc_sides[i].bc_index]) == DiffuseBoundary
@@ -101,6 +187,12 @@ function vrbgk_advection_finalize(particles::ParticleData, mesh::Mesh, config::S
                 @atomic mesh.bc_sides[i].vrbgk_incident_sum = NaN
             else
                 @atomic mesh.bc_sides[i].vrbgk_incident_sum /= mesh.bc_sides[i].vrbgk_incident_count
+                if mesh.bc_sides[i].adjacent_cell == 1741 && mesh.bc_sides[i].normal[1] < -0.5
+                    @printf "Average incident weight on left side is %.3f with %d particles\n"  mesh.bc_sides[i].vrbgk_incident_sum  mesh.bc_sides[i].vrbgk_incident_count
+                end
+                if mesh.bc_sides[i].adjacent_cell == 1741 && mesh.bc_sides[i].normal[2] < -0.5
+                    @printf "Average incident weight on top side is %.3f with %d particles\n"  mesh.bc_sides[i].vrbgk_incident_sum  mesh.bc_sides[i].vrbgk_incident_count
+                end
             end
         end
     end

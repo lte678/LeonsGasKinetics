@@ -17,6 +17,9 @@ Vertex = SVector{3, Float64}
 mutable struct BoundarySide
     bc_index :: Int16
     normal :: SVector{3, Float64}
+    face_vertices :: SVector{4, SVector{3, Float64}}
+    area :: Float64
+    adjacent_cell :: UInt32
     # TODO: Only include this if VRBGK is enabled.
     @atomic vrbgk_incident_sum :: Float64
     @atomic vrbgk_incident_count :: UInt32
@@ -181,6 +184,14 @@ end
 
 cell_volume(cell :: Cell) = cell_volume(variant(cell))
 
+function face_quad_area(face::SVector{4, SVector{3, Float64}})
+    v1, v2, v3, v4 = face[1], face[2], face[3], face[4]
+    a1 = 0.5 * norm(cross(v2 - v1, v3 - v1))
+    a2 = 0.5 * norm(cross(v3 - v1, v4 - v1))
+    return a1 + a2
+end
+
+
 """
 Imports meshes of the HOPR format.
 https://hopr.readthedocs.io/en/latest/userguide/meshformat.html
@@ -248,7 +259,7 @@ function mesh_from_h5(path)
                 else
                     push!(
                         bc_sides,
-                        BoundarySide(side_info[5, side_idx], side_normal(sides[i]), 0.0, 0)
+                        BoundarySide(side_info[5, side_idx], side_normal(sides[i]), sides[i], face_quad_area(sides[i]), UInt32(elem_id), 0.0, 0)
                     )
                     bcs[i] = length(bc_sides)
                 end
@@ -284,5 +295,45 @@ function mesh_from_h5(path)
 end
 
 
+"""
+Return a uniformly-distributed random point on the quadrilateral face `face`.
+
+Arguments:
+- `face`: SVector{4, SVector{3,Float64}} four corner vertices of the face
+
+Returns an SVector{3,Float64} position.
+"""
+function random_point_on_face(face::SVector{4, SVector{3,Float64}}) :: SVector{3,Float64}
+    # Split quadrilateral into two triangles: (1,2,3) and (1,3,4)
+    # We use vertex 1 as the common vertex to handle non-planar quads consistently
+    a, b, c, d = face[1], face[2], face[3], face[4]
+    
+    # Compute twice the area of each triangle (magnitude of cross product)
+    # No need to divide by 2 or multiply by 0.5 since we only need the ratio
+    area123 = norm(cross(b - a, c - a))
+    area134 = norm(cross(c - a, d - a))
+    
+    # Select triangle with probability proportional to its area
+    if rand() * (area123 + area134) < area123
+        # Sample uniformly from triangle (a, b, c) using barycentric coordinates
+        # Generate random barycentric coordinates: u ≥ 0, v ≥ 0, u+v ≤ 1
+        r1, r2 = rand(), rand()
+        s = sqrt(r1)
+        u = 1 - s      # barycentric coordinate for vertex b
+        v = s * r2     # barycentric coordinate for vertex c
+        # w = 1 - u - v (coordinate for vertex a) is implicit
+        return a + u*(b - a) + v*(c - a)
+    else
+        # Sample uniformly from triangle (a, c, d)
+        r1, r2 = rand(), rand()
+        s = sqrt(r1)
+        u = 1 - s      # barycentric coordinate for vertex c
+        v = s * r2     # barycentric coordinate for vertex d
+        return a + u*(c - a) + v*(d - a)
+    end
+end
+
+
 export Cell, Hexahedron
 export cell_contains
+export random_point_on_face

@@ -46,10 +46,17 @@ struct ReflectiveBoundary end
 struct DiffuseBoundary
     accommodation :: Float64
     temperature :: Float64
+    # Global coordinates
+    velocity :: SVector{3, Float64}
+end
+struct OpenBoundary
+    temperature :: Float64
+    density :: Float64
+    # Global coordinates
     velocity :: SVector{3, Float64}
 end
 
-@sumtype Boundary(SymmetricBoundary, ReflectiveBoundary, DiffuseBoundary)
+@sumtype Boundary(SymmetricBoundary, ReflectiveBoundary, DiffuseBoundary, OpenBoundary)
 
 
 struct VRBGKConfig
@@ -159,7 +166,7 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
 end
 
 function boundary_from_config(config)
-    type = get_option(config, "type", ["reflective", "symmetric", "diffuse"], default="reflective")
+    type = get_option(config, "type", ["reflective", "symmetric", "diffuse", "open"], default="reflective")
     if type == :reflective
         return ReflectiveBoundary()
     elseif type == :symmetric
@@ -169,6 +176,12 @@ function boundary_from_config(config)
             config["accommodation"],
             config["temperature"],
             get(config, "velocity", SVector(0.0, 0.0, 0.0)),
+        )
+    elseif type == :open
+        return OpenBoundary(
+            Float64(config["temperature"]),
+            Float64(config["density"]),
+            SVector{3,Float64}(get(config, "velocity", [0.0, 0.0, 0.0])),
         )
     end
 end

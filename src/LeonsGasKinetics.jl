@@ -19,6 +19,7 @@ using DataStructures
 include("constants.jl")
 include("statistics.jl")
 include("distributions/maxwellian.jl")
+include("distributions/inflow_maxwellian.jl")
 include("distributions/wall_maxwellian.jl")
 include("particle_data.jl")
 include("vrbgk.jl")
