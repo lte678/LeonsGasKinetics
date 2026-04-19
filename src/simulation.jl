@@ -135,7 +135,7 @@ function run_simulation_from_config(config_path::String, output_dir::String; ena
     @assert isfile(config_path) "Config file not found: $config_path"
 
     config = TOML.parsefile(config_path)
-    sim_config = sim_config_from_config(config, dirname(config_path), args["output_dir"], args["asserts"])
+    sim_config = sim_config_from_config(config, config_dir, output_dir, enable_asserts)
 
     # Create the mesh
     meshfile_path = joinpath(dirname(config_path), config["meshfile"])
