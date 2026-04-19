@@ -100,24 +100,16 @@ struct SimulationConfig{T1<:Function}
     # Sample accumulation mode: :continuous (entire sim) or :per_interval (reset on each output)
     accumulation_mode :: Symbol
     # 3D, 2D with z=0
-    spatial_dof :: Int64
+    degrees_of_freedom :: Int64
 end
 
 
-function sim_config_from_config(config, config_dir, output_path, asserts, bc_order) :: SimulationConfig
+function sim_config_from_config(config, config_dir, output_path, asserts) :: SimulationConfig
     species = convert(Dict{String, Dict{String, Float64}}, config["species"])
     if length(species) > 1
         error("Multi-species flow is not supported yet.")
     end
     species = map(species_from_config, keys(species), values(species))
-    boundaries = Vector{Boundary}()
-    for bc in bc_order
-        bc_idx = findfirst(b -> lowercase(b["identifier"]) == bc, config["boundary"])
-        if bc_idx === nothing
-            error("BC '$bc' missing from simulation config!")
-        end
-        push!(boundaries, Boundary(boundary_from_config(config["boundary"][bc_idx])))
-    end
 
     accumulation_mode = get_option(
         config["output"],
@@ -126,8 +118,8 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         default="continuous"
     )
 
-    spatial_dof = get_option(
-        config, "spatial_dof", [2, 3], default=3
+    degrees_of_freedom = get_option(
+        config, "degrees_of_freedom", [2, 3], default=3
     )
 
     coll_op = get_coll_op(
@@ -144,9 +136,10 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         vrbgk_config = VRBGKConfig(false, 0.0, 0.0)
     end
 
+    # TODO: The boundaries are loaded separately. This should be improved.
     return SimulationConfig(
         species,
-        boundaries,
+        Vector{Boundary}(),
         coll_op,
         Float64(config["dsmc"]["mpf"]),
         Float64(config["timestep"]["tend"]),
@@ -161,9 +154,23 @@ function sim_config_from_config(config, config_dir, output_path, asserts, bc_ord
         asserts,
         vrbgk_config,
         accumulation_mode,
-        spatial_dof
+        degrees_of_freedom
     )
 end
+
+
+function boundaries_from_config(config, boundary_order)
+    boundaries = Vector{Boundary}()
+    for bc in boundary_order
+        bc_idx = findfirst(b -> lowercase(b["identifier"]) == bc, config["boundary"])
+        if bc_idx === nothing
+            error("BC '$bc' missing from simulation config!")
+        end
+        push!(boundaries, Boundary(boundary_from_config(config["boundary"][bc_idx])))
+    end
+    return boundaries
+end
+
 
 function boundary_from_config(config)
     type = get_option(config, "type", ["reflective", "symmetric", "diffuse", "open"], default="reflective")

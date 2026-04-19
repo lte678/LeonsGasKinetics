@@ -57,11 +57,11 @@ end
 
 find_exit_face(origin, dir, normals, vertices) = find_exit_face_3d(origin, dir, normals, vertices)
 
-function find_exit_face(origin, dir, normals, vertices, spatial_dof::Val{3})
+function find_exit_face(origin, dir, normals, vertices, degrees_of_freedom::Val{3})
     return find_exit_face_3d(origin, dir, normals, vertices)
 end
 
-function find_exit_face(origin, dir, normals, vertices, spatial_dof::Val{2})
+function find_exit_face(origin, dir, normals, vertices, degrees_of_freedom::Val{2})
     return find_exit_face_2d(origin, dir, normals, vertices)
 end
 

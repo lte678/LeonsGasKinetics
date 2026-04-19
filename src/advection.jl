@@ -73,7 +73,7 @@ end
 function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, mesh, config) :: Tuple{SingleParticle, Float64}
     # This is the general purpose 3D code. Right now, some things are still assumed to be 2D
     #side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
-    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins, Val(config.spatial_dof))
+    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins, Val(config.degrees_of_freedom))
 
     if time_remaining < time_to_intersection
         p = @set p.pos += time_remaining * SVector(p.vel[1], p.vel[2], 0.0)

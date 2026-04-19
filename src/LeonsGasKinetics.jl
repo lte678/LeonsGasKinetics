@@ -108,13 +108,17 @@ function run(args)
         error("Failed to find config file $config_path")
     end
     config = TOML.parsefile(config_path)
-    
+    sim_config = sim_config_from_config(config, dirname(config_path), args["output_dir"], args["asserts"])
+
     # Create the mesh
     meshfile_path = joinpath(dirname(config_path), config["meshfile"])
-    mesh = mesh_from_h5(meshfile_path)
-    
-    # Build the simulation configuration structure
-    sim_config = sim_config_from_config(config, dirname(config_path), args["output_dir"], args["asserts"], mesh.bc_names)
+    if sim_config.degrees_of_freedom == 2
+        mesh = mesh_from_h5(meshfile_path, symmetry=:planar)
+    else
+        mesh = mesh_from_h5(meshfile_path)
+    end
+
+    @reset sim_config.boundaries = boundaries_from_config(config, mesh.bc_names)    
 
     # This printf is used to precompile.
     if !sim_config.silent

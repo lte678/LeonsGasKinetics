@@ -133,17 +133,20 @@ writing HDF5 output.
 """
 function run_simulation_from_config(config_path::String, output_dir::String; enable_asserts=false)
     @assert isfile(config_path) "Config file not found: $config_path"
-    
+
     config = TOML.parsefile(config_path)
-    config_dir = dirname(config_path)
-    
-    # Create mesh
-    meshfile_path = joinpath(config_dir, config["meshfile"])
-    mesh = mesh_from_h5(meshfile_path)
-    
-    # Build simulation configuration
-    sim_config = sim_config_from_config(config, config_dir, output_dir, enable_asserts, mesh.bc_names)
-    
+    sim_config = sim_config_from_config(config, dirname(config_path), args["output_dir"], args["asserts"])
+
+    # Create the mesh
+    meshfile_path = joinpath(dirname(config_path), config["meshfile"])
+    if sim_config.degrees_of_freedom == 2
+        mesh = mesh_from_h5(meshfile_path, symmetry=:planar)
+    else
+        mesh = mesh_from_h5(meshfile_path)
+    end
+
+    @reset sim_config.boundaries = boundaries_from_config(config, mesh.bc_names)    
+
     # Initialize simulation
     sim = SimulationState(
         ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled),

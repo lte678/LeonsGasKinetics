@@ -184,6 +184,7 @@ end
 
 cell_volume(cell :: Cell) = cell_volume(variant(cell))
 
+
 function face_quad_area(face::SVector{4, SVector{3, Float64}})
     v1, v2, v3, v4 = face[1], face[2], face[3], face[4]
     a1 = 0.5 * norm(cross(v2 - v1, v3 - v1))
@@ -193,10 +194,29 @@ end
 
 
 """
+Produces a perpendicular pair of vectors to the provided normal.
+
+Returns: tang1::SVector(3), tang2::SVector(3)
+
+Source: Duff et al, "_Building an Orthonormal Basis, Revisited_". 2017
+"""
+function perpendicular_pair(n::SVector{3,Float64})
+    # TODO: This could also live in another file since it is not strictly mesh related.
+    sign_n = copysign(1.0, n[3])
+    a = -1.0 / (sign_n + n[3])
+    b = n[1] * n[2] * a
+
+    tang1 = SVector(1.0 + sign_n * n[1]^2 * a,  sign_n * b,         -sign_n * n[1])
+    tang2 = SVector(b,                             n[2]^2 * a + sign_n, -n[2])
+    return tang1, tang2
+end
+
+
+"""
 Imports meshes of the HOPR format.
 https://hopr.readthedocs.io/en/latest/userguide/meshformat.html
 """
-function mesh_from_h5(path)
+function mesh_from_h5(path; symmetry::Symbol=:none)
     # Open HDF5 file
     h5file = h5open(path, "r")
     
@@ -244,7 +264,7 @@ function mesh_from_h5(path)
 
             # Calculate barycenter
             barycenter = sum(vertices) ./ 8
-            if abs(barycenter[3]) > 1e-10
+            if symmetry == :planar && abs(barycenter[3]) > 1e-10
                 error("Element $elem_id is not centered on z=0 (z=$(barycenter[3]))")
             end
 

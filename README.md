@@ -30,6 +30,7 @@ Wall velocity = +-100m/s, Kn=1.0
 - M. Pfeiffer, "_Particle-based fluid dynamics: Comparison of different Bhatnagar-Gross-Krook models and the direct simulation Monte Carlo method for hypersonic flows_". 2018
 - C.D. Landon and N. G. Hadjiconstantinou, "_Variance-Reduced Direct Simulation Monte Carlo with the Bhatnagar-Gross-Krook Collision Operator_". 2011
 - A.L. Garcia, W. Wagner, "_Generation of the Maxwellian inflow distribution_". 2006
+- Duff et al, "_Building an Orthonormal Basis, Revisited_". 2017
 
 # License
 Leon's Gas Kinetics  Copyright (C) 2026  Leon Teichroeb  

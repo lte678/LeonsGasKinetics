@@ -58,7 +58,7 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
         end
         
         # Generate random positions within the cell using rejection sampling
-        positions = _intialize_positions(variant(cell), num_particles, sim_config.spatial_dof)
+        positions = _intialize_positions(variant(cell), num_particles, sim_config.degrees_of_freedom)
         
         # Generate velocities based on distribution
         if velocity_dist == "maxwell"
@@ -107,7 +107,7 @@ end
 """
 Generate random positions within a hexahedral cell using rejection sampling.
 """
-function _intialize_positions(cell::Hexahedron, n_particles::Int, spatial_dof)
+function _intialize_positions(cell::Hexahedron, n_particles::Int, degrees_of_freedom)
     positions = Vector{Vector{Float64}}(undef, n_particles)
     
     # Find maximum Jacobian determinant for rejection sampling
@@ -118,7 +118,7 @@ function _intialize_positions(cell::Hexahedron, n_particles::Int, spatial_dof)
         # Generate random point in reference space [-1, 1]^3
         xi = 2.0 * rand() - 1.0
         eta = 2.0 * rand() - 1.0
-        if spatial_dof == 2
+        if degrees_of_freedom == 2
             zeta = 0.0
         else
             zeta = 2.0 * rand() - 1.0

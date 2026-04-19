@@ -1,6 +1,9 @@
 name = "Couette"
 meshfile = "mesh.h5"
 
+degrees_of_freedom = 2
+
+
 [timestep]
 tend = 0.3
 dt = 5e-5
