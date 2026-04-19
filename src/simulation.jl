@@ -133,6 +133,7 @@ writing HDF5 output.
 """
 function run_simulation_from_config(config_path::String, output_dir::String; enable_asserts=false)
     @assert isfile(config_path) "Config file not found: $config_path"
+    config_dir = dirname(config_path)
 
     config = TOML.parsefile(config_path)
     sim_config = sim_config_from_config(config, config_dir, output_dir, enable_asserts)
