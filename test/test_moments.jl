@@ -8,12 +8,13 @@ using LeonsGasKinetics
 using Test
 using Statistics
 using StaticArrays
+using Accessors
 using Random
 
 # Import necessary functions and constants from LeonsGasKinetics
-import LeonsGasKinetics: sample_maxwellian, BOLTZMANN, ParticleData, 
-                          MomentAccumulator, accumulate_moments!, 
-                          calc_flow_properties, add_moment!, clear_moments!
+import LeonsGasKinetics: sample_maxwellian, BOLTZMANN, ParticleData, CellData,
+                          MomentAccumulator, VRBGKMomentAccumulator, sample_maxwellian!, maxwellian,
+                          accumulate_moments!, calc_flow_properties, add_moment!, clear_moments!
 
 # AI DISCLAIMER: These tests are AI generated.
 # I have checked them and they look quite good. They actually test what they are supposed to.
@@ -23,32 +24,9 @@ Random.seed!(43)
 
 @testset "MomentAccumulator Tests" begin
     # Common test parameters
-    mass = 4.65e-26  # Mass of argon atom (kg)
     cell_volume = 1.0e-15  # m^3
-    mpf = 1.0e10  # Macro particle factor
-    
-    # Create a minimal simulation config
-    species = [LeonsGasKinetics.SpeciesConfig(mass, 3.66e-10, 273.0, 0.81, "Argon")]
-    vrbgk_config = LeonsGasKinetics.VRBGKConfig(false, 0.0, 0.0, false, 0.9)
-    sim_config = LeonsGasKinetics.SimulationConfig(
-        species,
-        Vector{LeonsGasKinetics.Boundary}(),
-        (pdata, samples, config, flow_variables, dt) -> (),
-        mpf,
-        1.0,  # t_end
-        1e-6,  # dt
-        1.0,  # sample_fraction
-        1,  # output_interval
-        1.0,  # report_interval
-        "test",
-        "test.msh",
-        "output",
-        true,  # silent
-        false,  # asserts
-        vrbgk_config,
-        :continuous,
-        3  # degrees_of_freedom
-    )
+    sim_config = TestSimulationConfig()
+    mass = sim_config.species[1].mass
 
     @testset "Test 1: Maxwell-Boltzmann Distribution" begin
         # Test with known bulk velocity and temperature
@@ -94,7 +72,7 @@ Random.seed!(43)
         @test isapprox(flow_props.mean_temperature, temperature, rtol=temp_error/temperature)
         
         # Test density
-        expected_density = n_particles * mpf / cell_volume
+        expected_density = n_particles * sim_config.mpf / cell_volume
         @test isapprox(flow_props.density, expected_density, rtol=1e-10)
         
         # Test particle count
@@ -175,7 +153,7 @@ Random.seed!(43)
         @test isapprox(flow_props.temperature, expected_temperature, rtol=temp_error/expected_temperature[1])
         
         # Test density
-        expected_density = total_particles * mpf / cell_volume
+        expected_density = total_particles * sim_config.mpf / cell_volume
         @test isapprox(flow_props.density, expected_density, rtol=1e-10)
     end
 
@@ -442,5 +420,58 @@ Random.seed!(43)
         # Temperature should be correct even at high values
         temp_error = 3 * sqrt(2) * temperature / sqrt(n_particles)
         @test isapprox(flow_props.temperature, SVector(temperature, temperature, temperature), rtol=temp_error/temperature)
+    end
+end
+
+
+@testset "VRBGKMomentAccumulator Tests" begin
+    # Common test parameters
+    cell_volume = 1.0e-15  # m^3
+    sim_config = TestSimulationConfig()
+    mass = sim_config.species[1].mass
+    @reset sim_config.mpf = 10.0
+    # With this MPF and cell_volume, we expect 10000 particles per cell at equilibrium.
+    n_particles_eq = 10000
+    vr_config = LeonsGasKinetics.VRBGKConfig(true, 300.0, 1e20, false, 0.0)
+    @reset sim_config.vrbgk = vr_config
+
+    @testset "Test 1: Variance Reduced Maxwell-Boltzmann Distribution" begin
+        bulk_velocity = SVector(2.0, 0.0, 0.0)
+        temperature = 302.0  # K
+        n_particles = 10000
+        
+        # Generate Maxwell-Boltzmann distributed velocities
+        velocities = sample_maxwellian(temperature, bulk_velocity, mass, n_particles)
+        
+        # Create particle data
+        particles = ParticleData(n_particles; vrbgk_enabled=sim_config.vrbgk.enabled)
+        sample_maxwellian!(particles.vel, temperature, bulk_velocity, mass)
+        fill!(particles.pos, SVector(0.0, 0.0, 0.0))
+        fill!(particles.cell, 1)
+        particles.features.vr_weight .=
+            (n_particles_eq * maxwellian(vr_config.ref_temperature, [0.0, 0.0, 0.0], mass, particles.vel)) ./ 
+            (n_particles    * maxwellian(temperature              , bulk_velocity  , mass, particles.vel))
+        cell_data = CellData(1; vrbgk_enabled=sim_config.vrbgk.enabled)
+        fill!(cell_data.features.vrbgk_ref_temperature, vr_config.ref_temperature)
+        fill!(cell_data.features.vrbgk_ref_density, vr_config.ref_density)
+        cells = [Cell(TestHexahedron(cell_volume))]
+
+        # Accumulate moments
+        moments = [VRBGKMomentAccumulator()]
+        accumulate_moments!(moments, particles, sim_config, cell_data, cells)
+        
+        # Calculate flow properties
+        flow_props = calc_flow_properties(moments[1], sim_config, cell_volume)
+        
+        expected_density = n_particles * sim_config.mpf / cell_volume
+
+        # Variances are harder to judge for VRBGK, but we from experience, we should be expecting a very low threshold this close to equilibrium.
+        @test isapprox(flow_props.velocity, bulk_velocity, atol=0.1)
+        @test isapprox(flow_props.temperature, SVector(temperature, temperature, temperature), atol=0.25)
+        @test isapprox(flow_props.mean_temperature, temperature, atol=0.25)
+        @test isapprox(flow_props.density, expected_density, rtol=1e-3)
+        
+        # Test particle count is not variance reduced
+        @test isapprox(flow_props.sim_particle_count, n_particles, rtol=1e-10)
     end
 end

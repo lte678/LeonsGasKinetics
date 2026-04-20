@@ -5,7 +5,7 @@ using Statistics
 using StaticArrays
 using LinearAlgebra
 
-# Include moment accumulator tests
+include("helpers.jl")
 include("test_moments.jl")
 
 @testset "Tracking Tests" begin
@@ -109,50 +109,17 @@ end
 
 
 @testset "Hexahedron Cell Containment" begin
-    # Create a unit cube [0, 1]^3 for simplicity
-    # Normals pointing OUTWARD
-    normals = SVector{6, SVector{3, Float64}}(
-        [1, 0, 0],  # +x
-        [-1, 0, 0], # -x
-        [0, 1, 0],  # +y
-        [0, -1, 0], # -y
-        [0, 0, 1],  # +z
-        [0, 0, -1]  # -z
-    )
-
-    origins = SVector{6, SVector{3, Float64}}(
-        [1, 0.5, 0.5], # +x face
-        [0, 0.5, 0.5], # -x face
-        [0.5, 1, 0.5], # +y face
-        [0.5, 0, 0.5], # -y face
-        [0.5, 0.5, 1], # +z face
-        [0.5, 0.5, 0]  # -z face
-    )
-
-    verts = SVector{8, SVector{3, Float64}}(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 1.0],
-        [1.0, 1.0, 1.0],
-        [0.0, 1.0, 1.0],
-    )
-    
-    cube = Hexahedron(
-        verts, normals, origins, 
-        SVector(0.5, 0.5, 0.5), # barycenter
-        zeros(SVector{6, UInt32}), zeros(SVector{6, UInt32}), 1.0
-    )
-
     @testset "Basic internal/external" begin
+        cube = TestHexahedron()
+        
         @test cell_contains(cube, SVector(0.5, 0.5, 0.5)) == true
         @test cell_contains(cube, SVector(1.5, 0.5, 0.5)) == false
         @test cell_contains(cube, SVector(-0.1, 0.5, 0.5)) == false
     end
 
     @testset "Face boundaries and epsilon offsets" begin
+        cube = TestHexahedron()
+        
         # Test directions: +x, -x, +y, -y, +z, -z
         directions = [
             SVector(1.0, 0.0, 0.0), SVector(-1.0, 0.0, 0.0),
@@ -185,6 +152,8 @@ end
     end
 
     @testset "Edge and corner" begin
+        cube = TestHexahedron()
+
         # Edge test: Edge is defined along [0, 1, 1] (X-axis at Y=1, Z=1)
         # Test just outside the edge in the diagonal direction
         edge_point_out = SVector(0.5, 1.0 + 1e-12, 1.0 + 1e-12)
