@@ -39,21 +39,26 @@ end
 
 # Variance reduced moments
 mutable struct VRBGKMomentAccumulator
-    # Sum of (1-W) * v_i
+    # Sum of (1-W) * v_i + eq. part
     c_i  :: SVector{3, Float64}
-    # Sum of (1-W) * v_i²        
+    # Sum of (1-W) * v_i^2 + eq. part
     c_ii :: SVector{3, Float64}
-    # Sum of W (variance reduction weights)
-    vr_sum :: Float64
+    # Physical particle count. MPF * (1 - W) + eq. part
+    physical_count :: Float64
 
-    # Simulation particle count
+    # Simulation particle count. Non-variance reduced
     count :: Int64
-    # Number of averaging steps.               
+    # Number of averaging steps.
     samples::Int64
+
+    # Non-accumulated scratch variables
+    # Sum of W (variance reduction weights). Not accumulated.
+    tmp_vr_sum :: Float64
+    tmp_count :: Int64
 end
 
 function VRBGKMomentAccumulator()
-    return VRBGKMomentAccumulator([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.0, 0, 0)
+    return VRBGKMomentAccumulator([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.0, 0, 0, 0.0, 0)
 end
 
 
@@ -68,7 +73,7 @@ end
 function add_moment!(moment_a::VRBGKMomentAccumulator, moment_b::VRBGKMomentAccumulator)
     moment_a.c_i += moment_b.c_i
     moment_a.c_ii += moment_b.c_ii
-    moment_a.vr_sum += moment_b.vr_sum
+    moment_a.physical_count += moment_b.physical_count
     moment_a.count += moment_b.count
     moment_a.samples += moment_b.samples
 end
@@ -92,9 +97,16 @@ function accumulate_moments!(moments::Vector{MomentAccumulator}, particles::Part
     end
 end
 
-# Variance-reduced moment calculation
-function accumulate_moments!(moments::Vector{VRBGKMomentAccumulator}, particles::ParticleData)
+"""
+Variance-reduced moment calculation.
+"""
+function accumulate_moments!(moments::Vector{VRBGKMomentAccumulator}, particles::ParticleData, sim_config::SimulationConfig, cell_data::CellData, mesh_cells::Vector{<:Cell})
     check_particle_data(particles)
+
+    @inbounds for cell_i in 1:length(moments)
+        moments[cell_i].tmp_vr_sum = 0.0
+        moments[cell_i].tmp_count = 0
+    end
 
     @inbounds for i in 1:length(particles)
         cell_i = particles.cell[i]
@@ -103,14 +115,21 @@ function accumulate_moments!(moments::Vector{VRBGKMomentAccumulator}, particles:
         
         vr_factor = 1.0 - w
         
-        moments[cell_i].count += 1
-        moments[cell_i].vr_sum += w
-        moments[cell_i].c_ii += vr_factor .* v.*v
-        moments[cell_i].c_i += vr_factor .* v
+        moments[cell_i].tmp_count += 1
+        moments[cell_i].tmp_vr_sum += w
+        moments[cell_i].physical_count += sim_config.mpf * vr_factor
+        moments[cell_i].c_ii += vr_factor * (v.*v)
+        moments[cell_i].c_i += vr_factor * v
     end
     
-    @inbounds for i in 1:length(moments)
-        moments[i].samples += 1
+    @inbounds for cell_i in 1:length(moments)
+        moments[cell_i].samples += 1
+        moments[cell_i].count += moments[cell_i].tmp_count
+
+        # Mean vr weight
+        mean_vr_weight = moments[cell_i].tmp_vr_sum / moments[cell_i].tmp_count
+        moments[cell_i].physical_count += cell_data.features.vrbgk_ref_density[cell_i] * cell_volume(mesh_cells[cell_i])
+        moments[cell_i].c_ii = moments[cell_i].c_ii .+ mean_vr_weight * moments[cell_i].tmp_count * BOLTZMANN * cell_data.features.vrbgk_ref_temperature[cell_i] / sim_config.species[1].mass
     end
 end
 
@@ -128,7 +147,7 @@ function clear_moments!(moments::Vector{VRBGKMomentAccumulator})
     for i = 1:length(moments)
         moments[i].c_i = SVector(0.0, 0.0, 0.0)
         moments[i].c_ii = SVector(0.0, 0.0, 0.0)
-        moments[i].vr_sum = 0.0
+        moments[i].physical_count = 0.0
         moments[i].count = 0.0
         moments[i].samples = 0
     end
@@ -170,26 +189,15 @@ end
 # Variance-reduced flow properties
 function calc_flow_properties(moments::VRBGKMomentAccumulator, config, cell_volume)
     mass = config.species[1].mass
-    mpf = config.mpf
-    
-    # Global equilibrium properties from config
-    n_eq = config.vrbgk.ref_density      # Reference number density [1/m³]
-    T_eq = config.vrbgk.ref_temperature  # Reference temperature [K]
-    
-    # Physical particles represented by equilibrium distribution
-    # This is the number of simulation particles expected at equilibrium, multiplied by the number of batches
-    count_eq = moments.samples * n_eq * cell_volume / mpf
-    
-    # Particle count
-    count_vr = moments.count - moments.vr_sum + count_eq
+
     # Velocity
     c_i = moments.c_i ./ moments.count
-    c_ii = moments.c_ii ./ moments.count .+ (count_eq / count_vr) * BOLTZMANN * T_eq / mass
+    c_ii = moments.c_ii ./ moments.count
     # Thermal velocity squared
     temperature = (mass / BOLTZMANN) * (c_ii - c_i.^2)
     
     # Number density
-    density = count_vr * mpf / cell_volume
+    density = moments.physical_count / (moments.samples * cell_volume)
     sim_part_count = moments.count / moments.samples
 
     return FlowProperties(

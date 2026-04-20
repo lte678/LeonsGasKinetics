@@ -5,17 +5,24 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 function initialize_simulation!(sim::SimulationState, mesh::Mesh, sim_config::SimulationConfig, initializations)
-    if length(sim.cell_part_count) < length(mesh.cells)
-        sim.cell_part_count = zeros(length(mesh.cells))
+    if length(sim.cells.part_count) < length(mesh.cells)
+        resize!(sim.cells, length(mesh.cells))
     end
     
+    # Initialize per-cell reference temperature and density to global values
+    if sim_config.vrbgk.enabled
+        fill!(sim.cells.features.vrbgk_ref_temperature, sim_config.vrbgk.ref_temperature)
+        fill!(sim.cells.features.vrbgk_ref_density, sim_config.vrbgk.ref_density)
+    end
+
+    # Insert particles
     for init_config in initializations
         species = init_config["species"]
 
         if !sim_config.silent
             println("Inserting particles of species \"$species\"")
         end
-        initialize!(sim, mesh, sim_config, init_config)
+        initial_particles!(sim, mesh, sim_config, init_config)
     end
 
     if sim_config.asserts
@@ -31,7 +38,7 @@ parameters. The number of particles in each cell is determined by the cell volum
 and macro particle factor (mpf). Particles are placed at random positions within each cell
 and assigned velocities according to the specified velocity distribution.
 """
-function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationConfig, init_dict::Dict)
+function initial_particles!(sim::SimulationState, mesh::Mesh, sim_config::SimulationConfig, init_dict::Dict)
     # Extract initialization parameters
     species = init_dict["species"]
     density = init_dict["density"]
@@ -73,8 +80,8 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
             feature_fields = []
             if sim_config.vrbgk.enabled
                 # Ratio of probabilities. Used for importance sampling. See VRBGK papers.
-                vr_weight = (sim_config.vrbgk.ref_density .* maxwellian(sim_config.vrbgk.ref_temperature, [0.0, 0.0, 0.0], mass, velocities[i])) ./
-                            (                     density .* maxwellian(temperature                     , bulk_velocity  , mass, velocities[i]))
+                vr_weight = (sim_config.vrbgk.ref_density .* maxwellian(sim.cells.features.vrbgk_ref_temperature[cell_i], [0.0, 0.0, 0.0], mass, velocities[i])) ./
+                            (                     density .* maxwellian(temperature                        , bulk_velocity  , mass, velocities[i]))
                 push!(feature_fields, :vr_weight => vr_weight)
             end
 
@@ -85,7 +92,7 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
                 (; feature_fields...)  # Convert to named tuple
             )
             insert_particle!(sim.particles, p)
-            sim.cell_part_count[cell_i] += 1
+            sim.cells.part_count[cell_i] += 1
         end
 
         total_inserted += num_particles
@@ -93,7 +100,7 @@ function initialize!(sim::SimulationState, mesh::Mesh, sim_config::SimulationCon
     
     if sim_config.asserts
         assert_particles_in_mesh(sim.particles, mesh)
-        assert_cell_part_count(sim.particles, sim.cell_part_count)
+        assert_cell_part_count(sim.particles, sim.cells.part_count)
     end
 
     if !sim_config.silent

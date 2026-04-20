@@ -13,7 +13,7 @@ function swap!(array, idx1, idx2)
 end
 
 
-function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::FlowProperties, dt)
+function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::FlowProperties, dt; ref_temperature=nothing, ref_density=nothing)
     n_part = length(pdata)
     if n_part < 2
         add_sample!(samples[:relaxation_rate], 0.0)
@@ -45,8 +45,8 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
             particle = @set particle.vel = sample_maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
 
             if config.vrbgk.enabled
-                f_eq = maxwellian(config.vrbgk.ref_temperature, [0.0, 0.0, 0.0]   , spec.mass, particle.vel)
-                f    = maxwellian(flow_vars.mean_temperature  , flow_vars.velocity, spec.mass, particle.vel)
+                f_eq = maxwellian(ref_temperature           , [0.0, 0.0, 0.0]   , spec.mass, particle.vel)
+                f    = maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass, particle.vel)
                 
                 particle = @set particle.features.vr_weight = vr_mean * f_eq / f
             end

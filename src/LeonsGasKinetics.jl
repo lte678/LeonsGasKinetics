@@ -22,6 +22,7 @@ include("distributions/maxwellian.jl")
 include("distributions/inflow_maxwellian.jl")
 include("distributions/wall_maxwellian.jl")
 include("particle_data.jl")
+include("cell_data.jl")
 include("vrbgk.jl")
 include("performance_counters.jl")
 include("simulation_state.jl")
@@ -44,8 +45,6 @@ include("output/output.jl")
 # To ease getting performance metrics.
 function precompile(mesh, sim_config)
     # Prepare particle data.
-    part_counts = zeros(UInt32, length(mesh.cells))
-    part_counts[1] = 2
     part_data = ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled)
     if sim_config.vrbgk.enabled
         feature_data = (; :vr_weight => 1.0)
@@ -62,9 +61,13 @@ function precompile(mesh, sim_config)
         SingleParticle(mesh.cells[1].barycenter, [-100.0, -100.0, -100.0], 1, feature_data)
     ) 
     
+    # Prepare cell data
+    cell_data = CellData(length(mesh.cells); vrbgk_enabled=sim_config.vrbgk.enabled)
+    cell_data.part_count[1] = 2
+    
     sim = SimulationState(
         part_data,
-        part_counts,
+        cell_data,
         0.0,
         PerformanceCounters()
     )
@@ -129,7 +132,7 @@ function run(args)
     # Prepare the simulation structure
     sim = SimulationState(
         ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled),
-        Vector{UInt32}(),
+        CellData(length(mesh.cells); vrbgk_enabled=sim_config.vrbgk.enabled),
         0.0,  # Start time
         PerformanceCounters()
     )

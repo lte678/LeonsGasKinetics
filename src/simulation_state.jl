@@ -4,12 +4,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-mutable struct SimulationState{Features}
-    # Particle information
-    particles :: ParticleData{Features}
-    # Save the number of particles per cell
-    cell_part_count :: Vector{UInt32}
-    # Current simulation time
-    time :: Float64
-    perf_counters :: PerformanceCounters
-end
+  mutable struct SimulationState{ParticleFeatures, CellFeatures}
+      # Particle information
+      particles :: ParticleData{ParticleFeatures}
+      # Per-cell data (particle counts and optional feature data)
+      cells :: CellData{CellFeatures}
+      # Current simulation time
+      time :: Float64
+      perf_counters :: PerformanceCounters
+  end

@@ -52,9 +52,9 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
     insert_open_boundary_particles!(sim, mesh, config, dt)
 
     # Recount after parallel advection to avoid write races on cell_part_count.
-    fill!(sim.cell_part_count, 0)
+    fill!(sim.cells.part_count, 0)
     for p in sim.particles
-        sim.cell_part_count[p.cell] += 1
+        sim.cells.part_count[p.cell] += 1
     end
 
     # Apply VRBGK fixes
@@ -64,7 +64,7 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
 
     if config.asserts
         assert_particles_in_mesh(sim.particles, mesh)
-        assert_cell_part_count(sim.particles, sim.cell_part_count)
+        assert_cell_part_count(sim.particles, sim.cells.part_count)
     end
 end
 

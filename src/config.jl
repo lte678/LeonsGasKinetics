@@ -63,6 +63,8 @@ struct VRBGKConfig
     enabled :: Bool
     ref_temperature :: Float64
     ref_density :: Float64
+    adaptive_equilibrium :: Bool
+    adaptive_smoothing_factor :: Float64
 end
 
 
@@ -131,9 +133,11 @@ function sim_config_from_config(config, config_dir, output_path, asserts) :: Sim
             true,
             Float64(config["denoise"]["T_ref"]),
             Float64(config["denoise"]["n_ref"]),
+            get(config["denoise"], "adaptive_equilibrium", false),
+            get(config["denoise"], "adaptive_smoothing_factor", 0.9),
         )
     else
-        vrbgk_config = VRBGKConfig(false, 0.0, 0.0)
+        vrbgk_config = VRBGKConfig(false, 0.0, 0.0, false, 0.9)
     end
 
     # TODO: The boundaries are loaded separately. This should be improved.

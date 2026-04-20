@@ -54,25 +54,44 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
 
         # Calculate moments
         timed_region(state.perf_counters, :accumulate_moments) do
-            accumulate_moments!(cell_moments, state.particles)
+            if config.vrbgk.enabled
+                accumulate_moments!(cell_moments, state.particles, config, state.cells, mesh.cells)
+            else
+                accumulate_moments!(cell_moments, state.particles)
+            end
         end
     
         # Perform the collision step
         timed_region(state.perf_counters, :collision) do
             particle_start_idx = 1
             for i in 1:n_cells
-                if state.cell_part_count[i] > 1
+                if state.cells.part_count[i] > 1
                     flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
-                    cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cell_part_count[i] - 1)
+                    cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cells.part_count[i] - 1)
 
                     # Perform collision on the current cell's particles.
                     if flow_vars.density < 0.0 || flow_vars.mean_temperature < 0.0 || isnan(flow_vars.density) || isnan(flow_vars.mean_temperature) || any(isnan.(flow_vars.velocity))
-                        error("Flow parameters went out of range in cell $i with $(state.cell_part_count[i]) particles.\n$flow_vars")
+                        error("Flow parameters went out of range in cell $i with $(state.cells.part_count[i]) particles.\n$flow_vars")
                     end
-                    config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt)
+                    
+                    # Update adaptive equilibrium reference values if enabled
+                    if config.vrbgk.adaptive_equilibrium
+                        k = config.vrbgk.adaptive_smoothing_factor
+                        state.cells.features.vrbgk_ref_temperature[i] = k * state.cells.features.vrbgk_ref_temperature[i] + (1 - k) * flow_vars.mean_temperature
+                        state.cells.features.vrbgk_ref_density[i] = k * state.cells.features.vrbgk_ref_density[i] + (1 - k) * flow_vars.density
+                    end
+                    
+                    # Pass per-cell reference values to collision operator
+                    if config.vrbgk.enabled
+                        config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt, 
+                            ref_temperature=state.cells.features.vrbgk_ref_temperature[i],
+                            ref_density=state.cells.features.vrbgk_ref_density[i])
+                    else
+                        config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt)
+                    end
                 end
 
-                particle_start_idx += state.cell_part_count[i]
+                particle_start_idx += state.cells.part_count[i]
             end
         end
 
@@ -90,7 +109,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                 config.silent || @printf "Starting sampling.\n"
             end
             for i in 1:n_cells
-                if state.cell_part_count[i] > 1
+                if state.cells.part_count[i] > 1
                     flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
                     add_sample!(cell_accumulators[i][:u_x] , flow_vars.velocity[1])
                     add_sample!(cell_accumulators[i][:u_y] , flow_vars.velocity[2])
@@ -101,7 +120,8 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                     add_sample!(cell_accumulators[i][:density], flow_vars.density)
                     add_sample!(cell_accumulators[i][:sim_part_count], flow_vars.sim_particle_count)
                     if config.vrbgk.enabled
-                        add_sample!(cell_accumulators[i][:vr_weight], cell_moments[i].vr_sum / cell_moments[i].count)
+                        mean_vr_weight = cell_moments[i].tmp_vr_sum / cell_moments[i].tmp_count
+                        add_sample!(cell_accumulators[i][:vr_weight], mean_vr_weight)
                     end
                 end
             end
@@ -151,7 +171,7 @@ function run_simulation_from_config(config_path::String, output_dir::String; ena
     # Initialize simulation
     sim = SimulationState(
         ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled),
-        Vector{UInt32}(),
+        CellData(length(mesh.cells); vrbgk_enabled=sim_config.vrbgk.enabled),
         0.0,
         PerformanceCounters()
     )
