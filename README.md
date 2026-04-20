@@ -19,7 +19,16 @@ paraview output_path_of_choice/*.vtu
 ```
 
 ## Demo
-### Couette
+
+### Rarefied thermally-driven cavity flow
+Flow driven by thermal transpiration. Kn=0.1, T_cold = 300K, T_hot=1500K  
+(Streamlines are plotted for bottom-left and top-right corners.)
+
+![Plot of temperature and velocity streamlines for thermally-driven cavity flow.](docs/thermal_cavity_comparison.jpg)
+
+Reference: M. Mousivand and E. Roohi, "_On the Rarefied Thermally-Driven Flows in Cavities and Bends_". 2022
+
+### 1D Couette
 Wall velocity = +-100m/s, Kn=1.0  
 ![Plot of velocity and temperature for Couette flow](docs/screenshot.png)
 
