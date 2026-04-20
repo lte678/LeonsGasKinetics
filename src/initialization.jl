@@ -5,10 +5,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 function initialize_simulation!(sim::SimulationState, mesh::Mesh, sim_config::SimulationConfig, initializations)
-    if length(sim.cells.part_count) < length(mesh.cells)
-        resize!(sim.cells, length(mesh.cells))
-    end
-    
     # Initialize per-cell reference temperature and density to global values
     if sim_config.vrbgk.enabled
         fill!(sim.cells.features.vrbgk_ref_temperature, sim_config.vrbgk.ref_temperature)

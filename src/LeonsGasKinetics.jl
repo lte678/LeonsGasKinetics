@@ -64,7 +64,11 @@ function precompile(mesh, sim_config)
     # Prepare cell data
     cell_data = CellData(length(mesh.cells); vrbgk_enabled=sim_config.vrbgk.enabled)
     cell_data.part_count[1] = 2
-    
+    if sim_config.vrbgk.enabled
+        fill!(cell_data.features.vrbgk_ref_temperature, sim_config.vrbgk.ref_temperature)
+        fill!(cell_data.features.vrbgk_ref_density, sim_config.vrbgk.ref_density)
+    end
+
     sim = SimulationState(
         part_data,
         cell_data,

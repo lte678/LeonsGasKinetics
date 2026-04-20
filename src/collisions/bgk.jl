@@ -45,6 +45,7 @@ function bgk_collision!(particles, cell_data::SingleCellData, samples, config::S
             particle = @set particle.vel = sample_maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
 
             if config.vrbgk.enabled
+                # In the collision operator, the VR-weights are defined on the local reference state (i.e. in cell_data)
                 f_eq = maxwellian(cell_data.features.vrbgk_ref_temperature, [0.0, 0.0, 0.0]   , spec.mass, particle.vel)
                 f    = maxwellian(flow_vars.mean_temperature              , flow_vars.velocity, spec.mass, particle.vel)
                 

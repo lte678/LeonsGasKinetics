@@ -10,7 +10,7 @@ import AcceleratedKernels as AK
 """
 Takes the initial_state and propagates it in time until the stopping condition is reached.
 """
-function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
+function run_simulation!(initial_state::SimulationState, mesh::Mesh, config::SimulationConfig)
     state = initial_state
     dt = config.dt
     sampling_start_time = (1.0 - config.sample_fraction) * config.t_end
@@ -42,7 +42,16 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         
         # Advect the particles. This also updates the particle cell information.
         timed_region(state.perf_counters, :advection) do
+            # Make sure that variance reduction weights are globally valid before they are potentially moved between cells.
+            if config.vrbgk.adaptive_equilibrium
+                vrbgk_local_to_global!(state.particles, config, state.cells)
+            end
+            
             advect!(state, mesh, config, dt)
+            
+            if config.vrbgk.adaptive_equilibrium
+                vrbgk_global_to_local!(state.particles, config, state.cells)
+            end
         end
 
         # Re-sort the particles. This is to make the BGK collision routine much simpler and to improve cache locality
