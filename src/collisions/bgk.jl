@@ -13,7 +13,7 @@ function swap!(array, idx1, idx2)
 end
 
 
-function bgk_collision!(particles, cell_data::SingleCellData, samples, config::SimulationConfig, flow_vars::FlowProperties, dt)
+function bgk_collision!(particles, cell_data, samples, config, flow_vars::FlowProperties, dt)
     n_part = length(particles)
     if n_part < 2
         add_sample!(samples[:relaxation_rate], 0.0)

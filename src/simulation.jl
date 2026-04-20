@@ -39,20 +39,25 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config::Sim
         else
             state.time += dt
         end
-        
-        # Advect the particles. This also updates the particle cell information.
-        timed_region(state.perf_counters, :advection) do
-            # Make sure that variance reduction weights are globally valid before they are potentially moved between cells.
-            if config.vrbgk.adaptive_equilibrium
+
+        # Make sure that variance reduction weights are globally valid before they are potentially moved between cells.
+        if config.vrbgk.adaptive_equilibrium
+            timed_region(state.perf_counters, :vr_weight_transform) do
                 vrbgk_local_to_global!(state.particles, config, state.cells)
             end
-            
+        end
+
+        # Advect the particles. This also updates the particle cell information.
+        timed_region(state.perf_counters, :advection) do
             advect!(state, mesh, config, dt)
-            
-            if config.vrbgk.adaptive_equilibrium
+        end
+
+        if config.vrbgk.adaptive_equilibrium
+            timed_region(state.perf_counters, :vr_weight_transform) do
                 vrbgk_global_to_local!(state.particles, config, state.cells)
             end
         end
+
 
         # Re-sort the particles. This is to make the BGK collision routine much simpler and to improve cache locality
         # for the moment calculation for example.
