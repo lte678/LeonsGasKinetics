@@ -5,6 +5,8 @@ using Statistics
 using StaticArrays
 using LinearAlgebra
 
+# Include moment accumulator tests
+include("test_moments.jl")
 
 @testset "Tracking Tests" begin
     # 1. Define a unit cube (0,0,0) to (1,1,1)
