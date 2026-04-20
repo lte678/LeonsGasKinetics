@@ -21,6 +21,14 @@ function FlowProperties()
     return FlowProperties(SVector(0.0, 0.0, 0.0), SVector(0.0, 0.0, 0.0), 0.0, 0.0, 0.0)
 end
 
+function Base.show(io::IO, ::MIME"text/plain", fp::FlowProperties)
+    println(io, "FlowProperties:")
+    println(io, "  velocity = [", join((@sprintf("%.2e", v) for v in fp.velocity), ", "), "] m/s")
+    println(io, "  temperature = $(@sprintf("%.2e", fp.mean_temperature)) K ([", join((@sprintf("%.2e", t) for t in fp.temperature), ", "), "] K)")
+    println(io, "  density = $(@sprintf("%.2e", fp.density)) 1/m³")
+    print(  io, "  simulation particles = $(@sprintf("%d", fp.sim_particle_count))")
+end
+
 
 mutable struct MomentAccumulator
     c_i  :: SVector{3, Float64}

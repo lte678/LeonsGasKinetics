@@ -1,3 +1,6 @@
+# TODO: This sucks. Lets see if we can get rid of it in the future.
+const _weight_drift_warned = Ref(false)
+
 function vrbgk_check_weight(weight::Float64)
     if isnan(weight) || weight < 1e-3 || weight > 1e3
         error("Weight of particle is extreme, w = $weight")
@@ -22,7 +25,8 @@ function vrbgk_conserve_mass(particles, target_vr_sum::Float64; silent::Bool=fal
         particles[i] = @set p.features.vr_weight *= alpha
     end
 
-    if !silent && abs(new_vr_sum - target_vr_sum) / target_vr_sum > 0.01
+    if !silent && !_weight_drift_warned[] && abs(new_vr_sum - target_vr_sum) / target_vr_sum > 0.01
         println("Large drift in weights!")
+        _weight_drift_warned[] = true
     end
 end

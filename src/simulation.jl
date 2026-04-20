@@ -72,7 +72,12 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
 
                     # Perform collision on the current cell's particles.
                     if flow_vars.density < 0.0 || flow_vars.mean_temperature < 0.0 || isnan(flow_vars.density) || isnan(flow_vars.mean_temperature) || any(isnan.(flow_vars.velocity))
-                        error("Flow parameters went out of range in cell $i with $(state.cells.part_count[i]) particles.\n$flow_vars")
+                        error_msg = "Flow parameters went out of range in cell $i with $(state.cells.part_count[i]) particles."
+                        if config.vrbgk.adaptive_equilibrium
+                            error_msg *= "\nConsider disabling `adaptive_equilibrium` or increasing `adaptive_smoothing_factor`."
+                        end
+                        error_msg *= "\n" * sprint(show, MIME("text/plain"), flow_vars)
+                        error(error_msg)
                     end
                     
                     # Update adaptive equilibrium reference values if enabled
@@ -94,6 +99,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
         if !config.silent
             maybe_report(reporter) do
                 @printf "[Iteration = %6d] t = %12.6fμs\n" iteration state.time * 1e6
+                _weight_drift_warned[] = false  # Allow warning again next period
             end
         end
 
@@ -106,9 +112,9 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
             for i in 1:n_cells
                 if state.cells.part_count[i] > 1
                     flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
-                    add_sample!(cell_accumulators[i][:u_x] , flow_vars.velocity[1])
-                    add_sample!(cell_accumulators[i][:u_y] , flow_vars.velocity[2])
-                    add_sample!(cell_accumulators[i][:u_z] , flow_vars.velocity[3])
+                    add_sample!(cell_accumulators[i][:u_x], flow_vars.velocity[1])
+                    add_sample!(cell_accumulators[i][:u_y], flow_vars.velocity[2])
+                    add_sample!(cell_accumulators[i][:u_z], flow_vars.velocity[3])
                     add_sample!(cell_accumulators[i][:T_x], flow_vars.temperature[1])
                     add_sample!(cell_accumulators[i][:T_y], flow_vars.temperature[2])
                     add_sample!(cell_accumulators[i][:T_z], flow_vars.temperature[3])

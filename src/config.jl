@@ -134,7 +134,7 @@ function sim_config_from_config(config, config_dir, output_path, asserts) :: Sim
             Float64(config["denoise"]["T_ref"]),
             Float64(config["denoise"]["n_ref"]),
             get(config["denoise"], "adaptive_equilibrium", false),
-            get(config["denoise"], "adaptive_smoothing_factor", 0.9),
+            get(config["denoise"], "adaptive_smoothing_factor", 0.999),
         )
     else
         vrbgk_config = VRBGKConfig(false, 0.0, 0.0, false, 0.9)
