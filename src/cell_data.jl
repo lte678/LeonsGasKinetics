@@ -19,6 +19,12 @@ struct CellData{Features<:NamedTuple}
 end
 
 
+struct SingleCellData{Features<:NamedTuple}
+    part_count :: UInt32
+    features :: Features
+end
+
+
 """
 Construct a CellData object with optional feature fields.
 
@@ -44,6 +50,15 @@ function CellData(n_cells; vrbgk_enabled=false)
     return CellData(
         zeros(UInt32, n_cells),
         NamedTuple{Tuple(feature_fields)}(feature_data),
+    )
+end
+
+
+function Base.getindex(data::CellData, i)
+    feature_data = map(v -> v[i], data.features)
+    return SingleCellData(
+        data.part_count[i],
+        feature_data,
     )
 end
 

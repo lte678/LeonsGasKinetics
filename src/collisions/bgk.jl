@@ -13,8 +13,8 @@ function swap!(array, idx1, idx2)
 end
 
 
-function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::FlowProperties, dt; ref_temperature=nothing, ref_density=nothing)
-    n_part = length(pdata)
+function bgk_collision!(particles, cell_data::SingleCellData, samples, config::SimulationConfig, flow_vars::FlowProperties, dt)
+    n_part = length(particles)
     if n_part < 2
         add_sample!(samples[:relaxation_rate], 0.0)
         return
@@ -26,7 +26,7 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
     spec = config.species[1]
 
     if config.vrbgk.enabled
-        vr_mass = vrbgk_calculate_mass(pdata)
+        vr_mass = vrbgk_calculate_mass(particles)
         vr_mean = vr_mass / n_part
     end
 
@@ -41,23 +41,23 @@ function bgk_collision!(pdata, samples, config::SimulationConfig, flow_vars::Flo
         if rand() < relax_probability
             # Relax the particle
             # swap!(pdata, n_relaxed + 1, i)
-            particle = pdata[i]
+            particle = particles[i]
             particle = @set particle.vel = sample_maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass)
 
             if config.vrbgk.enabled
-                f_eq = maxwellian(ref_temperature           , [0.0, 0.0, 0.0]   , spec.mass, particle.vel)
-                f    = maxwellian(flow_vars.mean_temperature, flow_vars.velocity, spec.mass, particle.vel)
+                f_eq = maxwellian(cell_data.features.vrbgk_ref_temperature, [0.0, 0.0, 0.0]   , spec.mass, particle.vel)
+                f    = maxwellian(flow_vars.mean_temperature              , flow_vars.velocity, spec.mass, particle.vel)
                 
                 particle = @set particle.features.vr_weight = vr_mean * f_eq / f
             end
             # Update particle
-            pdata[i] = particle
+            particles[i] = particle
             n_relaxed += 1
         end
     end
 
     if config.vrbgk.enabled
-        vrbgk_conserve_mass(pdata, vr_mass; silent=config.silent)
+        vrbgk_conserve_mass(particles, vr_mass; silent=config.silent)
     end
 
     # Update cell averages

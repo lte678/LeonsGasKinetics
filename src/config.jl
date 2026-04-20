@@ -202,7 +202,7 @@ function get_coll_op(operator_name)
     if operator_name == :bgk
         return bgk_collision!
     elseif operator_name == :none
-        return (pdata, samples, config, flow_variables, dt) -> ()
+        return (particle_data, cell_data, samples, config, flow_variables, dt) -> ()
     else
         error("Unknown DSMC collision operator \"$operator_name\"")
     end

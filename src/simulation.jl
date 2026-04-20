@@ -68,6 +68,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                 if state.cells.part_count[i] > 1
                     flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
                     cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cells.part_count[i] - 1)
+                    cell_data = state.cells[i]
 
                     # Perform collision on the current cell's particles.
                     if flow_vars.density < 0.0 || flow_vars.mean_temperature < 0.0 || isnan(flow_vars.density) || isnan(flow_vars.mean_temperature) || any(isnan.(flow_vars.velocity))
@@ -82,13 +83,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config)
                     end
                     
                     # Pass per-cell reference values to collision operator
-                    if config.vrbgk.enabled
-                        config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt, 
-                            ref_temperature=state.cells.features.vrbgk_ref_temperature[i],
-                            ref_density=state.cells.features.vrbgk_ref_density[i])
-                    else
-                        config.collision_operator(cell_particles, cell_accumulators[i], config, flow_vars, dt)
-                    end
+                    config.collision_operator(cell_particles, cell_data, cell_accumulators[i], config, flow_vars, dt)
                 end
 
                 particle_start_idx += state.cells.part_count[i]
