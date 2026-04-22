@@ -7,6 +7,8 @@
 module LeonsGasKinetics
 
 using Printf
+using Profile
+using PProf
 using TOML
 using HDF5
 using LIKWID
@@ -152,7 +154,12 @@ function run(args)
     elapsed = @elapsed begin
         # For profiling the average flops
         #volume_samples = @perfmon "FLOPS_SP" run_simulation!(sim, mesh, sim_config)
-        volume_samples = run_simulation!(sim, mesh, sim_config)
+        if args["profile"]
+            Profile.clear()
+            volume_samples = @profile run_simulation!(sim, mesh, sim_config)
+        else
+            volume_samples = run_simulation!(sim, mesh, sim_config)
+        end
     end
 
     @printf "Simulation finished in %.1f seconds.\n" elapsed
@@ -162,6 +169,11 @@ function run(args)
     if args["profile"]
         println()
         print_performance_stats(sim.perf_counters)
+        println()
+        println("Opening profiling results in browser...")
+        pprof()
+        println("Press ENTER to stop serving profiling results")
+        readline()
     end
     # Benchmark
     #@printf "Profiling"

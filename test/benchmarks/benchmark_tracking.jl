@@ -12,21 +12,26 @@ using PProf
 const N_TESTS = 10_000
 Random.seed!(42)
 
+# Want to see something crazy? Float32 is slower than Float64 (on my Ryzen 3600X machine that is)
+# Remember kids, always benchmark first.
+T = Float64
+
 # Cell setup
-const normals = SVector(
+const normals = SVector{6, SVector{3, T}}(
     SVector(1.0, 0.0, 0.0), SVector(-1.0, 0.0, 0.0),
     SVector(0.0, 1.0, 0.0), SVector(0.0, -1.0, 0.0),
     SVector(0.0, 0.0, 1.0), SVector(0.0, 0.0, -1.0)
 )
-const vertices = SVector(
+const vertices = SVector{6, SVector{3, T}}(
     SVector(0.0, 0.5, 0.5), SVector(1.0, 0.5, 0.5),
     SVector(0.5, 0.0, 0.5), SVector(0.5, 1.0, 0.5),
     SVector(0.5, 0.5, 0.0), SVector(0.5, 0.5, 1.0)
 )
 
 # Generate Random Origins (within unit cube) and Directions (normalized)
-const origins = [SVector{3, Float64}(rand(3)...) for _ in 1:N_TESTS]
-const dirs = [normalize(SVector{3, Float64}(randn(3)...)) for _ in 1:N_TESTS]
+const origins = [SVector{3, T}(rand(3)...) for _ in 1:N_TESTS]
+const dirs = [SVector{3, T}(randn(3)...) for _ in 1:N_TESTS]
+const dirs2 = [SVector{3, T}(randn(3)...) for _ in 1:N_TESTS]
 
 # --- Benchmarking ---
 println("Benchmarking find_exit_face with $N_TESTS iterations...")
@@ -57,6 +62,7 @@ run_bench(origins, dirs)
 #PProf.Allocs.pprof()
 
 suite = @benchmarkable run_bench2d($origins, $dirs)
+GC.gc()
 results = run(suite, verbose=true)
 
 display(results)

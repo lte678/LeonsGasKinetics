@@ -22,28 +22,8 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
         end
     end
 
-    AK.foreachindex(particles, max_tasks=Threads.nthreads()) do i
-        time_remaining = dt
-        p = particles[i]
-
-        while time_remaining > 0.0
-            cell = mesh.cells[p.cell]
-            p_old = p
-            p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config)
-
-            if p.cell == 0
-                break  # Particle absorbed by open boundary; skip further steps and asserts
-            end
-
-            if config.asserts && !cell_contains(mesh.cells[p.cell], p.pos)
-                println("WARNING: Lost particle while moving from $(p_old.pos) @ cell $(p_old.cell) -> $(p.pos) @ cell $(p.cell)")
-                p = p_old
-                break
-            end
-        end
-
-        particles[i] = p
-    end
+    # Just move each particle and handle boundary collisions as they occur. No more, no less.
+    advect_move!(particles, mesh, config, dt, Val(config.degrees_of_freedom))
 
     # Remove particles absorbed by open boundaries (marked cell = 0 by take_advection_step).
     compact_deleted_particles!(sim.particles)
@@ -69,11 +49,37 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
 end
 
 
+function advect_move!(particles, mesh, config, dt, dofs)
+    AK.foreachindex(particles, max_tasks=Threads.nthreads()) do i
+        time_remaining = dt
+        p = particles[i]
+
+        while time_remaining > 0.0
+            cell = mesh.cells[p.cell]
+            p_old = p
+            p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config, dofs)
+
+            if p.cell == 0
+                break  # Particle absorbed by open boundary; skip further steps and asserts
+            end
+
+            if config.asserts && !cell_contains(mesh.cells[p.cell], p.pos)
+                println("WARNING: Lost particle while moving from $(p_old.pos) @ cell $(p_old.cell) -> $(p.pos) @ cell $(p.cell)")
+                p = p_old
+                break
+            end
+        end
+
+        particles[i] = p
+    end
+end
+
+
 # This function dynamically dispatches on the cell type
-function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, mesh, config) :: Tuple{SingleParticle, Float64}
+function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, mesh, config, dofs) :: Tuple{SingleParticle, Float64}
     # This is the general purpose 3D code. Right now, some things are still assumed to be 2D
     #side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
-    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins, Val(config.degrees_of_freedom))
+    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins, dofs)
 
     if time_remaining < time_to_intersection
         p = @set p.pos += time_remaining * SVector(p.vel[1], p.vel[2], 0.0)
