@@ -7,7 +7,7 @@
 using StaticArrays
 
 
-function find_exit_face_3d(origin::SVector{3,T}, dir::SVector{3,T}, normals::SVector{6,SVector{3,T}}, vertices::SVector{6,SVector{3,T}}) where T
+function find_exit_face_3d(origin::AbstractArray, dir::AbstractArray, normals::SVector{6,SVector{3,T}}, vertices::SVector{6,SVector{3,T}}) where T
     best_dist = Inf
     best_idx  = 0
 
@@ -33,7 +33,7 @@ end
 Specialized routine that calculates the exit face in the 2D case.
 The z-axis is completely neglected in this case. None of the first 4 face normals may have a non-zero z-component.
 """
-function find_exit_face_2d(origin::SVector{3,T}, dir::SVector{3,T}, normals::SVector{6,SVector{3,T}}, vertices::SVector{6,SVector{3,T}}) where T
+function find_exit_face_2d(origin::AbstractArray, dir::AbstractArray, normals::SVector{6,SVector{3,T}}, vertices::SVector{6,SVector{3,T}}) where T
     best_dist = Inf
     best_idx  = 0
 

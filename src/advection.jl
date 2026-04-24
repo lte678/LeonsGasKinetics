@@ -53,41 +53,47 @@ end
 function advect_move!(particles, mesh, config, dt, dofs, asserts)
     AK.foreachindex(particles, max_tasks=Threads.nthreads()) do i
         time_remaining = dt
-        p = particles[i]
-
+        pos = particles.pos[i]
+        vel = particles.vel[i]
         while time_remaining > 0.0
             # By encoding this flag as a type, we can check it when advect_move! is compiled
             if asserts isa Val{true}
-                old_cell = p.cell
-                old_pos = p.pos
+                old_cell = particles[i].cell
+                old_pos = particles[i].pos
             end
 
-            cell = mesh.cells[p.cell]
-            p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config, dofs)
+            cell = mesh.cells[particles[i].cell]
+            time_remaining, pos, vel = take_advection_step(particles, i, pos, vel, time_remaining, cell, mesh, config, dofs)
 
-            if asserts isa Val{true} && !cell_contains(mesh.cells[p.cell], p.pos)
-                println("WARNING: Lost particle while moving from $(old_pos) @ cell $(old_cell) -> $(p.pos) @ cell $(p.cell)")
+            if asserts isa Val{true} && !cell_contains(mesh.cells[particles[i].cell], particles[i].pos)
+                println("WARNING: Lost particle while moving from $(old_pos) @ cell $(old_cell) -> $(particles[i].pos) @ cell $(particles[i].cell)")
                 break
             end
         end
-
-        particles[i] = p
     end
 end
 
 
 # This function dynamically dispatches on the cell type
-function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, mesh, config, dofs) :: Tuple{SingleParticle, Float64}
+function take_advection_step(particles::ParticleData, i, pos, vel, time_remaining::Float64, cell, mesh, config, dofs)
     # This is the general purpose 3D code. Right now, some things are still assumed to be 2D
     #side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
-    side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins, dofs)
+    side_i, time_to_intersection = find_exit_face(pos, vel, cell.normals, cell.face_origins, dofs)
 
     if time_remaining < time_to_intersection
-        p = @set p.pos += time_remaining * SVector(p.vel[1], p.vel[2], 0.0)
-        return p, 0.0
+        if dofs isa Val{2}
+            pos += time_remaining * SVector(vel[1], vel[2], 0.0)
+        else
+            pos += time_remaining * vel
+        end
+        return 0.0, pos, vel
     else
         time_remaining -= time_to_intersection
-        p = @set p.pos += time_to_intersection * SVector(p.vel[1], p.vel[2], 0.0)
+        if dofs isa Val{2}
+            pos += time_to_intersection * SVector(vel[1], vel[2], 0.0)
+        else
+            pos += time_to_intersection * vel
+        end
     end
         
     # Handle boundary condition
@@ -95,24 +101,25 @@ function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, m
     if bc_side_indx == 0
         # Connected to another cell
         neighbour = cell.neighbours[side_i]
-        p = @set p.cell = neighbour
-        if p.cell == 0
-            error("Particle attempted to leave cell (x=$(p.pos), v=$(p.vel))")
+        particles.cell[i] = neighbour
+        if neighbour == 0
+            error("Particle attempted to leave cell (x=$pos, v=$vel)")
         end
     else
         bc_side = mesh.bc_sides[bc_side_indx]
         bc = config.boundaries[bc_side.bc_index]
         if variantof(bc) == OpenBoundary
             # Absorb the particle; cell = 0 signals deletion to advect!
-            p = @set p.cell = UInt64(0)
-            return p, 0.0
+            particles.cell[i] = 0
+            return 0.0, pos, vel
         else
-            p = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
+            particles[i] = handle_boundary(particles[i], bc_side, bc_side_indx, config.species[1], variant(bc), config)
+            vel = particles.vel[i]
         end
     end
 
-    # Handling a single collision is sufficient. Break.
-    return p, time_remaining
+    # We handle a single step per call of take_advection_step. Break.
+    return time_remaining, pos, vel
 end
 
 
