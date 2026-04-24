@@ -65,9 +65,11 @@ function advect_move!(particles, mesh, config, dt, dofs, asserts)
             cell = mesh.cells[particles[i].cell]
             time_remaining, pos, vel = take_advection_step(particles, i, pos, vel, time_remaining, cell, mesh, config, dofs)
 
-            if asserts isa Val{true} && !cell_contains(mesh.cells[particles[i].cell], pos)
-                println("WARNING: Lost particle while moving from $old_pos @ cell $old_cell -> $pos @ cell $(particles[i].cell)")
-                break
+            if asserts isa Val{true}
+                if particles[i].cell != 0 && !cell_contains(mesh.cells[particles[i].cell], particles[i].pos)
+                    println("WARNING: Lost particle while moving from $(old_pos) @ cell $(old_cell) -> $(pos) @ cell $(particles[i].cell)")
+                    break
+                end
             end
         end
         particles.pos[i] = pos
@@ -82,7 +84,7 @@ function take_advection_step(particles::ParticleData, i, pos, vel, time_remainin
 
     if time_remaining <= time_to_intersection
         if dofs isa Val{2}
-            pos += time_remaining * SVector(vel[1], vel[2], 0.0)
+            pos = SVector(pos[1] + time_remaining*vel[1], pos[2] + time_remaining*vel[2], pos[3])
         else
             pos += time_remaining * vel
         end
@@ -90,7 +92,7 @@ function take_advection_step(particles::ParticleData, i, pos, vel, time_remainin
     else
         time_remaining -= time_to_intersection
         if dofs isa Val{2}
-            pos += time_to_intersection * SVector(vel[1], vel[2], 0.0)
+            pos += SVector(pos[1] + time_to_intersection*vel[1], pos[2] + time_to_intersection*vel[2], pos[3])
         else
             pos += time_to_intersection * vel
         end
