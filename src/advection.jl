@@ -59,28 +59,28 @@ function advect_move!(particles, mesh, config, dt, dofs, asserts)
             # By encoding this flag as a type, we can check it when advect_move! is compiled
             if asserts isa Val{true}
                 old_cell = particles[i].cell
-                old_pos = particles[i].pos
+                old_pos = pos
             end
 
             cell = mesh.cells[particles[i].cell]
             time_remaining, pos, vel = take_advection_step(particles, i, pos, vel, time_remaining, cell, mesh, config, dofs)
 
-            if asserts isa Val{true} && !cell_contains(mesh.cells[particles[i].cell], particles[i].pos)
-                println("WARNING: Lost particle while moving from $(old_pos) @ cell $(old_cell) -> $(particles[i].pos) @ cell $(particles[i].cell)")
+            if asserts isa Val{true} && !cell_contains(mesh.cells[particles[i].cell], pos)
+                println("WARNING: Lost particle while moving from $old_pos @ cell $old_cell -> $pos @ cell $(particles[i].cell)")
                 break
             end
         end
+        particles.pos[i] = pos
+        particles.vel[i] = vel
     end
 end
 
 
 # This function dynamically dispatches on the cell type
 function take_advection_step(particles::ParticleData, i, pos, vel, time_remaining::Float64, cell, mesh, config, dofs)
-    # This is the general purpose 3D code. Right now, some things are still assumed to be 2D
-    #side_i, time_to_intersection = find_exit_face(p.pos, p.vel, cell.normals, cell.face_origins)
     side_i, time_to_intersection = find_exit_face(pos, vel, cell.normals, cell.face_origins, dofs)
 
-    if time_remaining < time_to_intersection
+    if time_remaining <= time_to_intersection
         if dofs isa Val{2}
             pos += time_remaining * SVector(vel[1], vel[2], 0.0)
         else
@@ -113,7 +113,11 @@ function take_advection_step(particles::ParticleData, i, pos, vel, time_remainin
             particles.cell[i] = 0
             return 0.0, pos, vel
         else
-            particles[i] = handle_boundary(particles[i], bc_side, bc_side_indx, config.species[1], variant(bc), config)
+            p = particles[i]
+            @reset p.pos = pos
+            @reset p.vel = vel
+            particles[i] = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
+            pos = particles.pos[i]
             vel = particles.vel[i]
         end
     end
