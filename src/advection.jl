@@ -23,7 +23,8 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
     end
 
     # Just move each particle and handle boundary collisions as they occur. No more, no less.
-    advect_move!(particles, mesh, config, dt, Val(config.degrees_of_freedom))
+    # The Val objects allow for specialization on the boolean. The assert is surprisingly expensive.
+    advect_move!(particles, mesh, config, dt, Val(config.degrees_of_freedom), Val(config.asserts))
 
     # Remove particles absorbed by open boundaries (marked cell = 0 by take_advection_step).
     compact_deleted_particles!(sim.particles)
@@ -49,23 +50,23 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
 end
 
 
-function advect_move!(particles, mesh, config, dt, dofs)
+function advect_move!(particles, mesh, config, dt, dofs, asserts)
     AK.foreachindex(particles, max_tasks=Threads.nthreads()) do i
         time_remaining = dt
         p = particles[i]
 
         while time_remaining > 0.0
-            cell = mesh.cells[p.cell]
-            p_old = p
-            p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config, dofs)
-
-            if p.cell == 0
-                break  # Particle absorbed by open boundary; skip further steps and asserts
+            # By encoding this flag as a type, we can check it when advect_move! is compiled
+            if asserts isa Val{true}
+                old_cell = p.cell
+                old_pos = p.pos
             end
 
-            if config.asserts && !cell_contains(mesh.cells[p.cell], p.pos)
-                println("WARNING: Lost particle while moving from $(p_old.pos) @ cell $(p_old.cell) -> $(p.pos) @ cell $(p.cell)")
-                p = p_old
+            cell = mesh.cells[p.cell]
+            p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config, dofs)
+
+            if asserts isa Val{true} && !cell_contains(mesh.cells[p.cell], p.pos)
+                println("WARNING: Lost particle while moving from $(old_pos) @ cell $(old_cell) -> $(p.pos) @ cell $(p.cell)")
                 break
             end
         end
@@ -104,6 +105,7 @@ function take_advection_step(p::SingleParticle, time_remaining::Float64, cell, m
         if variantof(bc) == OpenBoundary
             # Absorb the particle; cell = 0 signals deletion to advect!
             p = @set p.cell = UInt64(0)
+            return p, 0.0
         else
             p = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
         end
