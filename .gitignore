@@ -35,3 +35,4 @@ JuliaLocalPreferences.toml
 examples/**/output
 *.h5
 *.vtu
+*.gz
