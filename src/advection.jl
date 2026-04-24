@@ -53,58 +53,59 @@ end
 function advect_move!(particles, mesh, config, dt, dofs, asserts)
     AK.foreachindex(particles, max_tasks=Threads.nthreads()) do i
         time_remaining = dt
-        pos = particles.pos[i]
-        vel = particles.vel[i]
+        @inbounds pos = particles.pos[i]
+        @inbounds vel = particles.vel[i]
+        @inbounds cell_i = particles.cell[i]
         while time_remaining > 0.0
             # By encoding this flag as a type, we can check it when advect_move! is compiled
             if asserts isa Val{true}
-                old_cell = particles[i].cell
+                old_cell = cell_i
                 old_pos = pos
             end
 
-            cell = mesh.cells[particles[i].cell]
-            time_remaining, pos, vel = take_advection_step(particles, i, pos, vel, time_remaining, cell, mesh, config, dofs)
+            @inbounds cell = mesh.cells[cell_i]
+            time_remaining, pos, vel, cell_i = take_advection_step(particles, i, pos, vel, cell_i, time_remaining, cell, mesh, config, dofs)
 
             if asserts isa Val{true}
-                if particles[i].cell != 0 && !cell_contains(mesh.cells[particles[i].cell], particles[i].pos)
-                    println("WARNING: Lost particle while moving from $(old_pos) @ cell $(old_cell) -> $(pos) @ cell $(particles[i].cell)")
+                if cell_i != 0 && !cell_contains(mesh.cells[cell_i], pos)
+                    error("WARNING: Lost particle while moving from $old_pos @ cell $old_cell -> $pos @ cell $cell_i")
                     break
                 end
             end
         end
-        particles.pos[i] = pos
-        particles.vel[i] = vel
+        @inbounds particles.pos[i] = pos
+        @inbounds particles.vel[i] = vel
+        @inbounds particles.cell[i] = cell_i
     end
 end
 
 
 # This function dynamically dispatches on the cell type
-function take_advection_step(particles::ParticleData, i, pos, vel, time_remaining::Float64, cell, mesh, config, dofs)
-    side_i, time_to_intersection = find_exit_face(pos, vel, cell.normals, cell.face_origins, dofs)
+function take_advection_step(particles::ParticleData, i, pos, vel, cell_i, time_remaining::Float64, cell, mesh, config, dofs) :: Tuple{Float64, SVector{3, Float64}, SVector{3, Float64}, UInt64}
+    side_i, time_to_intersection = @inline find_exit_face(pos, vel, cell.normals, cell.face_origins, dofs)
 
     if time_remaining <= time_to_intersection
         if dofs isa Val{2}
-            pos = SVector(pos[1] + time_remaining*vel[1], pos[2] + time_remaining*vel[2], pos[3])
+            pos = SVector(pos[1] + time_remaining*vel[1], pos[2] + time_remaining*vel[2], 0.0)
         else
             pos += time_remaining * vel
         end
-        return 0.0, pos, vel
+        return 0.0, pos, vel, cell_i
     else
         time_remaining -= time_to_intersection
         if dofs isa Val{2}
-            pos += SVector(pos[1] + time_to_intersection*vel[1], pos[2] + time_to_intersection*vel[2], pos[3])
+            pos = SVector(pos[1] + time_to_intersection*vel[1], pos[2] + time_to_intersection*vel[2], 0.0)
         else
             pos += time_to_intersection * vel
         end
     end
         
     # Handle boundary condition
-    bc_side_indx = cell.bc_side_idx[side_i]
+    @inbounds bc_side_indx = cell.bc_side_idx[side_i]
     if bc_side_indx == 0
         # Connected to another cell
-        neighbour = cell.neighbours[side_i]
-        particles.cell[i] = neighbour
-        if neighbour == 0
+        @inbounds cell_i = cell.neighbours[side_i]
+        if cell_i == 0
             error("Particle attempted to leave cell (x=$pos, v=$vel)")
         end
     else
@@ -112,20 +113,21 @@ function take_advection_step(particles::ParticleData, i, pos, vel, time_remainin
         bc = config.boundaries[bc_side.bc_index]
         if variantof(bc) == OpenBoundary
             # Absorb the particle; cell = 0 signals deletion to advect!
-            particles.cell[i] = 0
-            return 0.0, pos, vel
+            return 0.0, pos, vel, 0
         else
             p = particles[i]
             @reset p.pos = pos
             @reset p.vel = vel
+            @reset p.cell = cell_i
             particles[i] = handle_boundary(p, bc_side, bc_side_indx, config.species[1], variant(bc), config)
             pos = particles.pos[i]
             vel = particles.vel[i]
+            cell_i = particles.cell[i]
         end
     end
 
     # We handle a single step per call of take_advection_step. Break.
-    return time_remaining, pos, vel
+    return time_remaining, pos, vel, cell_i
 end
 
 

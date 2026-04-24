@@ -4,7 +4,7 @@ using Atomix
 function handle_boundary(
     particle::SingleParticle,
     side::BoundarySide,
-    side_idx::UInt32,
+    side_idx,
     species::SpeciesConfig,
     boundary::DiffuseBoundary,
     config::SimulationConfig
@@ -33,6 +33,6 @@ function handle_boundary(
         particle = @set particle.features.vr_weight *= particle.features.last_collided_weight
         vrbgk_check_weight(particle.features.vr_weight)
     end
-
+    
     return particle
 end

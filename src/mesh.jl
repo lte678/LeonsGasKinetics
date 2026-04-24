@@ -32,9 +32,9 @@ struct Hexahedron
     face_origins :: SVector{6, SVector{3, Float64}}
     barycenter :: SVector{3, Float64}
     # Boundary conditions (zero if none)
-    bc_side_idx :: SVector{6, UInt32}
+    bc_side_idx :: SVector{6, UInt64}
     # Neighbour cell for side.
-    neighbours :: SVector{6, UInt32}
+    neighbours :: SVector{6, UInt64}
     volume :: Float64
 end
 

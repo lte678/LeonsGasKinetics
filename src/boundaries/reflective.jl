@@ -1,7 +1,7 @@
 function handle_boundary(
     particle::SingleParticle,
     side::BoundarySide,
-    side_idx::UInt32,
+    side_idx,
     species::SpeciesConfig,
     boundary::ReflectiveBoundary,
     config::SimulationConfig

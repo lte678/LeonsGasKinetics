@@ -6,7 +6,7 @@ Therefore, only one cell's width is permitted in the symmetry direction.
 function handle_boundary(
     particle::SingleParticle,
     side::BoundarySide,
-    side_idx::UInt32,
+    side_idx,
     species::SpeciesConfig,
     boundary::SymmetricBoundary,
     config::SimulationConfig
