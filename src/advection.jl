@@ -26,11 +26,11 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
     # The Val objects allow for specialization on the boolean. The assert is surprisingly expensive.
     advect_move!(particles, mesh, config, dt, Val(config.degrees_of_freedom), Val(config.asserts))
 
-    # Remove particles absorbed by open boundaries (marked cell = 0 by take_advection_step).
-    compact_deleted_particles!(sim.particles)
-
     # Insert new particles entering through open boundaries.
     insert_open_boundary_particles!(sim, mesh, config, dt)
+
+    # Remove particles absorbed by open boundaries (marked cell = 0 by take_advection_step).
+    compact_deleted_particles!(sim.particles)
 
     # Recount after parallel advection to avoid write races on cell_part_count.
     fill!(sim.cells.part_count, 0)
@@ -49,34 +49,43 @@ function advect!(sim::SimulationState, mesh::Mesh, config, dt)
     end
 end
 
-
+"""
+Advect all particles in simulation for `dt`.
+"""
 function advect_move!(particles, mesh, config, dt, dofs, asserts)
     AK.foreachindex(particles, max_tasks=Threads.nthreads()) do i
-        time_remaining = dt
-        @inbounds pos = particles.pos[i]
-        @inbounds vel = particles.vel[i]
-        @inbounds cell_i = particles.cell[i]
-        while time_remaining > 0.0
-            # By encoding this flag as a type, we can check it when advect_move! is compiled
-            if asserts isa Val{true}
-                old_cell = cell_i
-                old_pos = pos
-            end
+        advect_move!(particles, mesh, config, dt, dofs, asserts, i)
+    end
+end
 
-            @inbounds cell = mesh.cells[cell_i]
-            time_remaining, pos, vel, cell_i = take_advection_step(particles, i, pos, vel, cell_i, time_remaining, cell, mesh, config, dofs)
+"""
+Advect a single particle for the entirety of its remaining time `dt`.
+"""
+function advect_move!(particles, mesh, config, dt, dofs, asserts, i)
+    time_remaining = dt
+    @inbounds pos = particles.pos[i]
+    @inbounds vel = particles.vel[i]
+    @inbounds cell_i = particles.cell[i]
+    while time_remaining > 0.0
+        # By encoding this flag as a type, we can check it when advect_move! is compiled
+        if asserts isa Val{true}
+            old_cell = cell_i
+            old_pos = pos
+        end
 
-            if asserts isa Val{true}
-                if cell_i != 0 && !cell_contains(mesh.cells[cell_i], pos)
-                    error("WARNING: Lost particle while moving from $old_pos @ cell $old_cell -> $pos @ cell $cell_i")
-                    break
-                end
+        @inbounds cell = mesh.cells[cell_i]
+        time_remaining, pos, vel, cell_i = take_advection_step(particles, i, pos, vel, cell_i, time_remaining, cell, mesh, config, dofs)
+
+        if asserts isa Val{true}
+            if cell_i != 0 && !cell_contains(mesh.cells[cell_i], pos)
+                error("WARNING: Lost particle while moving from $old_pos @ cell $old_cell -> $pos @ cell $cell_i")
+                break
             end
         end
-        @inbounds particles.pos[i] = pos
-        @inbounds particles.vel[i] = vel
-        @inbounds particles.cell[i] = cell_i
     end
+    @inbounds particles.pos[i] = pos
+    @inbounds particles.vel[i] = vel
+    @inbounds particles.cell[i] = cell_i
 end
 
 
@@ -184,18 +193,23 @@ function insert_open_boundary_particles!(sim::SimulationState, mesh::Mesh, confi
             else
                 features = (;)
             end
-
-            p = SingleParticle(pos, vel, UInt64(bc_side.adjacent_cell), features)
+            p_index = insert_particle!(
+                sim.particles,
+                SingleParticle(pos, vel, UInt64(bc_side.adjacent_cell), features)
+            )
 
             # Advect by a random sub-interval of dt to simulate a continuous flux.
             time_remaining = rand() * dt
-            while time_remaining > 0.0
-                cell = mesh.cells[p.cell]
-                p, time_remaining = take_advection_step(p, time_remaining, cell, mesh, config)
-                p.cell == 0 && break  # Left through another open boundary; discard
-            end
-
-            p.cell != 0 && insert_particle!(sim.particles, p)
+            # Move particle at index p_index (so the one we just inserted)
+            advect_move!(
+                sim.particles,
+                mesh,
+                config,
+                time_remaining,
+                Val(config.degrees_of_freedom),
+                Val(config.asserts),
+                p_index
+            )
         end
     end
 end

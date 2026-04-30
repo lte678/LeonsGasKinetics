@@ -45,7 +45,7 @@ include("output/output.jl")
 
 
 # To ease getting performance metrics.
-function precompile(mesh, sim_config)
+function precompile(mesh, sim_config::SimulationConfig{T1}) where T1
     # Prepare particle data.
     part_data = ParticleData(; vrbgk_enabled=sim_config.vrbgk.enabled)
     if sim_config.vrbgk.enabled
@@ -77,9 +77,18 @@ function precompile(mesh, sim_config)
         0.0,
         PerformanceCounters()
     )
-    sim_config = @set sim_config.t_end = sim_config.dt*100
-    sim_config = @set sim_config.silent = true
-    sim_config = @set sim_config.output_interval = 0  # No outputs
+    filtered_boundaries = Vector{Boundary}()
+    for boundary in sim_config.boundaries
+        if variantof(boundary) == OpenBoundary
+            push!(filtered_boundaries, Boundary(ReflectiveBoundary()))
+        else
+            push!(filtered_boundaries, boundary)
+        end
+    end
+    @reset sim_config.boundaries = filtered_boundaries
+    @reset sim_config.t_end = sim_config.dt*100
+    @reset sim_config.silent = true
+    @reset sim_config.output_interval = 0  # No outputs
     run_simulation!(sim, mesh, sim_config)
 end
 

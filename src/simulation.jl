@@ -25,8 +25,6 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config::Sim
     end
     cell_accumulators = [DefaultDict{Symbol, Averager}(() -> Averager()) for _ in 1:n_cells]
 
-    particle_reordering = zeros(UInt64, length(state.particles))
-    t = similar(state.particles.cell)
     particle_data_scratch = ParticleData(length(state.particles); vrbgk_enabled=config.vrbgk.enabled)
 
     iteration = 1
@@ -62,7 +60,10 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config::Sim
         # Re-sort the particles. This is to make the BGK collision routine much simpler and to improve cache locality
         # for the moment calculation for example.
         timed_region(state.perf_counters, :sorting) do
-            AK.sortperm!(particle_reordering, state.particles.cell, temp=t)
+            # Get two scratch arrays for this
+            particle_reordering = state.particles.scratch_1
+            scratch = state.particles.scratch_2
+            AK.sortperm!(particle_reordering, state.particles.cell, temp=scratch)
             reorder!(state.particles, particle_reordering; scratch=particle_data_scratch)
         end
 
@@ -79,31 +80,33 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config::Sim
         timed_region(state.perf_counters, :collision) do
             particle_start_idx = 1
             for i in 1:n_cells
-                if state.cells.part_count[i] > 1
-                    flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
-                    cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cells.part_count[i] - 1)
-                    cell_data = state.cells[i]
-
-                    # Perform collision on the current cell's particles.
-                    if flow_vars.density < 0.0 || flow_vars.mean_temperature < 0.0 || isnan(flow_vars.density) || isnan(flow_vars.mean_temperature) || any(isnan.(flow_vars.velocity))
-                        error_msg = "Flow parameters went out of range in cell $i with $(state.cells.part_count[i]) particles."
-                        if config.vrbgk.adaptive_equilibrium
-                            error_msg *= "\nConsider disabling `adaptive_equilibrium` or increasing `adaptive_smoothing_factor`."
-                        end
-                        error_msg *= "\n" * sprint(show, MIME("text/plain"), flow_vars)
-                        error(error_msg)
-                    end
-                    
-                    # Update adaptive equilibrium reference values if enabled
-                    if config.vrbgk.adaptive_equilibrium
-                        k = config.vrbgk.adaptive_smoothing_factor
-                        state.cells.features.vrbgk_ref_temperature[i] = k * state.cells.features.vrbgk_ref_temperature[i] + (1 - k) * flow_vars.mean_temperature
-                        state.cells.features.vrbgk_ref_density[i] = k * state.cells.features.vrbgk_ref_density[i] + (1 - k) * flow_vars.density
-                    end
-                    
-                    # Pass per-cell reference values to collision operator
-                    config.collision_operator(cell_particles, cell_data, cell_accumulators[i], config, flow_vars, dt)
+                if state.cells.part_count[i] < 2
+                    continue
                 end
+
+                flow_vars = calc_flow_properties(cell_moments[i], config, mesh.cells[i].volume)
+                cell_particles = particle_view(state.particles, particle_start_idx, particle_start_idx + state.cells.part_count[i] - 1)
+                cell_data = state.cells[i]
+
+                # Perform collision on the current cell's particles.
+                if flow_vars.density < 0.0 || flow_vars.mean_temperature < 0.0 || isnan(flow_vars.density) || isnan(flow_vars.mean_temperature) || any(isnan.(flow_vars.velocity))
+                    error_msg = "Flow parameters went out of range in cell $i with $(state.cells.part_count[i]) particles."
+                    if config.vrbgk.adaptive_equilibrium
+                        error_msg *= "\nConsider disabling `adaptive_equilibrium` or increasing `adaptive_smoothing_factor`."
+                    end
+                    error_msg *= "\n" * sprint(show, MIME("text/plain"), flow_vars)
+                    error(error_msg)
+                end
+                
+                # Update adaptive equilibrium reference values if enabled
+                if config.vrbgk.adaptive_equilibrium
+                    k = config.vrbgk.adaptive_smoothing_factor
+                    state.cells.features.vrbgk_ref_temperature[i] = k * state.cells.features.vrbgk_ref_temperature[i] + (1 - k) * flow_vars.mean_temperature
+                    state.cells.features.vrbgk_ref_density[i] = k * state.cells.features.vrbgk_ref_density[i] + (1 - k) * flow_vars.density
+                end
+                
+                # Pass per-cell reference values to collision operator
+                config.collision_operator(cell_particles, cell_data, cell_accumulators[i], config, flow_vars, dt)
 
                 particle_start_idx += state.cells.part_count[i]
             end
