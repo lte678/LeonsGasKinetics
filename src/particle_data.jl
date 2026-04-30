@@ -161,10 +161,23 @@ function reorder!(dst::ParticleData, src::ParticleData, perm::AbstractVector{<:I
 end
 
 """
+Ensure scratch space is exactly the right size for the given particle count.
+Resizes if needed, leveraging Julia's Vector growth strategy.
+"""
+function ensure_scratch_size!(scratch::ParticleData, required_size::Integer)
+    if length(scratch) != required_size
+        resize!(scratch, required_size)
+    end
+    return scratch
+end
+
+"""
 Reorder particles in pdata according to the permutation. Uses pre-allocated scratch to avoid allocation.
+Automatically resizes scratch if necessary to accommodate variable particle counts.
 """
 function reorder!(pdata::ParticleData, perm::AbstractVector{<:Integer}; scratch::ParticleData)
     @assert scratch !== pdata
+    ensure_scratch_size!(scratch, length(pdata))
     reorder!(scratch, pdata, perm)
     copyto!(pdata, scratch)
     return pdata

@@ -1,4 +1,16 @@
 @testset "Simulation Test" begin
+    @testset "Open Reservoir" begin
+        # Test shear flow between moving plates
+        BASE_FOLDER = dirname(dirname(pathof(LeonsGasKinetics)))
+        config_path = joinpath(BASE_FOLDER, "test", "configs", "open_reservoir.toml")
+        volume_output, sim_config, mesh = run_simulation_from_config(config_path, "output"; enable_asserts=true)
+
+        @test all(abs.(volume_output["Total_NumberDensity"]) .> 0.975e23)
+        @test all(abs.(volume_output["Total_NumberDensity"]) .< 1.025e23)
+        @test all(volume_output["Total_TempTransMean"] .> 6950.0)
+        @test all(volume_output["Total_TempTransMean"] .< 7050.0)
+    end
+
     @testset "BGK Couette" begin
         # Test shear flow between moving plates
         BASE_FOLDER = dirname(dirname(pathof(LeonsGasKinetics)))
