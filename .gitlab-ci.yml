@@ -46,6 +46,7 @@ benchmark:
     - julia -t4 --project=. src/main.jl test/benchmarks/thermal_cavity_benchmark.toml /tmp/lgk_output --times > output.log
     # Parse the results using the Python script
     - python3 test/benchmarks/output_to_junit.py output.log
-  reports:
-    junit: benchmark_report.xml
-
+  artifacts:
+    reports:
+      junit: benchmark_report.xml
+    when: always
