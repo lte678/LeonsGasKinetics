@@ -216,7 +216,7 @@ end
 Imports meshes of the HOPR format.
 https://hopr.readthedocs.io/en/latest/userguide/meshformat.html
 """
-function mesh_from_h5(path; symmetry::Symbol=:none)
+function mesh_from_h5(path; symmetry::Symbol=:none, silent=false)
     # Open HDF5 file
     h5file = h5open(path, "r")
     
@@ -225,7 +225,9 @@ function mesh_from_h5(path; symmetry::Symbol=:none)
     if ngeo != 1
         error("Cannot load curved geometry (Ngeo=$ngeo).")
     end
-    @printf "Loading mesh with %d cells.\n" nelems
+    if !silent
+        @printf "Loading mesh with %d cells.\n" nelems
+    end
 
     # Read data arrays
     elem_info = read(h5file, "ElemInfo")

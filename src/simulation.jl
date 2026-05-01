@@ -169,7 +169,7 @@ end
 Load configuration, run simulation, and return postprocessed volume data without 
 writing HDF5 output.
 """
-function run_simulation_from_config(config_path::String, output_dir::String; enable_asserts=false)
+function run_simulation_from_config(config_path::String, output_dir::String; enable_asserts=false, silent=false)
     @assert isfile(config_path) "Config file not found: $config_path"
     config_dir = dirname(config_path)
 
@@ -179,12 +179,13 @@ function run_simulation_from_config(config_path::String, output_dir::String; ena
     # Create the mesh
     meshfile_path = joinpath(dirname(config_path), config["meshfile"])
     if sim_config.degrees_of_freedom == 2
-        mesh = mesh_from_h5(meshfile_path, symmetry=:planar)
+        mesh = mesh_from_h5(meshfile_path, symmetry=:planar, silent=silent)
     else
-        mesh = mesh_from_h5(meshfile_path)
+        mesh = mesh_from_h5(meshfile_path, silent=silent)
     end
 
     @reset sim_config.boundaries = boundaries_from_config(config, mesh.bc_names)    
+    @reset sim_config.silent = silent
 
     # Initialize simulation
     sim = SimulationState(

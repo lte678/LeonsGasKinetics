@@ -1,0 +1,45 @@
+name = "ThermalCavityBenchmark"
+meshfile = "mesh_21x21.h5"
+
+degrees_of_freedom = 2
+
+
+[timestep]
+tend = 0.1
+dt = 6e-5
+
+[output]
+#accumulation = "per-interval"
+#output_interval = 500
+sample_fraction = 0.95
+
+[species.argon]
+T_ref = 273.0
+d_ref = 4.05e-10
+mass = 6.63e-26
+omega = 0.27
+
+[dsmc]
+collision_operator = "bgk"
+mpf = 6.0e12
+
+[[boundary]]
+identifier = "BC_SYM"
+type = "symmetric"
+
+[[boundary]]
+identifier = "BC_Wall"
+type = "diffuse"
+accommodation = 1.0
+temperature = 300.0
+
+[[boundary]]
+identifier = "BC_Lid"
+type = "diffuse"
+accommodation = 1.0
+temperature = 1500.0
+
+[[initialization]]
+species = "argon"
+density = 1.37e19
+temperature = 500.0

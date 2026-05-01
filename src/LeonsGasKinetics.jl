@@ -99,8 +99,11 @@ function run(args)
         "--asserts"
             help = "Enables extra assertions (slow!)"
             action = :store_true
-        "--profile"
+        "--times"
             help = "Print how compute time was spent in the simulation"
+            action = :store_true
+        "--profile"
+            help = "Runs the profiler on the simulation and opens the results in the browser"
             action = :store_true
         "config_file"
             help = "Path to simulation configuration file"
@@ -175,20 +178,17 @@ function run(args)
     
     write_flow_state(volume_samples, sim_config.t_end, mesh, sim_config)
 
-    if args["profile"]
+    if args["times"]
         println()
         print_performance_stats(sim.perf_counters)
+    end
+    if args["profile"]
         println()
         println("Opening profiling results in browser...")
         pprof()
         println("Press ENTER to stop serving profiling results")
         readline()
     end
-    # Benchmark
-    #@printf "Profiling"
-    #sim = SimulationState(ParticleData(), [], 0.0)
-    #initialize_simulation!(sim, mesh, sim_config, config["initialization"])
-    #print(@time run_simulation!(sim, mesh, sim_config))
 end
 
 export run_simulation!, run_simulation_from_config
