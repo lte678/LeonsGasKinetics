@@ -36,12 +36,16 @@ test:
     # NOTE: Coverage has a very large performance impact.
     - julia --project=@. -e 'using Pkg; Pkg.test()'
 
+
 benchmark:
   stage: analyze
   image: julia:1.12
-
-  script:
+ 
+  before_script:
     - apt-get update -qq && apt-get install -y -qq python3 || true
+    # Instantiate the project (install dependencies)
+    - julia --project=@. -e 'using Pkg; Pkg.instantiate(); Pkg.build()'
+  script:
     # Run benchmark
     - julia -t4 --project=. src/main.jl test/benchmarks/thermal_cavity_benchmark.toml /tmp/lgk_output --times > output.log
     # Parse the results using the Python script
