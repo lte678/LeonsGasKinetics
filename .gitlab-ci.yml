@@ -34,8 +34,11 @@ test:
     # Run the test suite (executes test/runtests.jl)
     # - julia --project=@. -e 'using Pkg; Pkg.test(; coverage=true)'
     # NOTE: Coverage has a very large performance impact.
-    - julia --project=@. -e 'using Pkg; Pkg.test()'
-
+    - julia --project=@. -e 'using Pkg; Pkg.add("TestReports"); using TestReports; TestReports.test()'
+  artifacts:
+    reports:
+      junit: testlog.xml
+    when: always
 
 benchmark:
   stage: analyze
