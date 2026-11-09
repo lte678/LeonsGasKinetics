@@ -39,7 +39,6 @@ struct ParticleData{Features<:NamedTuple}
 
     # Scratch arrays that may be clobbered and left dirty at any time.
     scratch_1 :: Vector{UInt64}
-    scratch_2 :: Vector{UInt64}
 
     # Data structures related to gated features, e.g. variance reduction, chemistry, etc.
     features :: Features
@@ -61,7 +60,6 @@ function ParticleData(; vrbgk_enabled=false)
     return ParticleData(
         Vector{SVector{3,Float64}}(),
         Vector{SVector{3,Float64}}(),
-        Vector{UInt64}(),
         Vector{UInt64}(),
         Vector{UInt64}(),
         NamedTuple{Tuple(feature_fields)}(feature_data),
@@ -103,7 +101,6 @@ function Base.resize!(pdata::ParticleData, n_particles::Integer)
     resize!(pdata.cell, n_particles)
     
     resize!(pdata.scratch_1, n_particles)
-    resize!(pdata.scratch_2, n_particles)
     # Also resize all feature-specific data structures
     for field in pdata.features
         resize!(field, n_particles)
@@ -211,7 +208,6 @@ function make_scratch(pdata::ParticleData)
         similar(pdata.vel),
         similar(pdata.cell),
         similar(pdata.scratch_1),
-        similar(pdata.scratch_2),
         map(v -> similar(v), pdata.features),
     )
 end
@@ -224,7 +220,6 @@ function check_particle_data(part_data :: ParticleData)
     @assert length(part_data.pos) == length(part_data.vel)
     @assert length(part_data.pos) == length(part_data.cell)
     @assert length(part_data.pos) == length(part_data.scratch_1)
-    @assert length(part_data.pos) == length(part_data.scratch_2)
     for feature_arr in part_data.features
         @assert length(part_data.pos) == length(feature_arr)
     end

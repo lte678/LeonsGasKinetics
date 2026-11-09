@@ -62,8 +62,7 @@ function run_simulation!(initial_state::SimulationState, mesh::Mesh, config::Sim
         timed_region(state.perf_counters, :sorting) do
             # Get two scratch arrays for this
             particle_reordering = state.particles.scratch_1
-            scratch = state.particles.scratch_2
-            AK.sortperm!(particle_reordering, state.particles.cell, temp=scratch)
+            AK.sortperm!(particle_reordering, state.particles.cell)
             reorder!(state.particles, particle_reordering; scratch=particle_data_scratch)
         end
 

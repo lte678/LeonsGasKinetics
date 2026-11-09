@@ -191,6 +191,12 @@ function run(args)
     end
 end
 
+
+# Entry point used by `julia -m LeonsGasKinetics` and by the `lgk` app.
+function (@main)(args)
+    run(args)
+end
+
 export run_simulation!, run_simulation_from_config
 
 end
